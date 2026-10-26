@@ -18,10 +18,15 @@ The skeleton issue creates these; keep this list in sync with the
 `Makefile`.
 
 - `uv sync` - install dependencies
-- `make test` - run the tests. It currently runs the unit tests only;
-  frontend tests are added by #13 and integration tests by #18
+- `cd frontend && npm ci` - install frontend dependencies
+- `make test` - run the tests. It currently runs the unit and frontend
+  tests; integration tests are added by #18
+- `make test-frontend` - frontend typecheck and tests
 - `make lint` - lint, same as the ruff command below
 - `uv run pytest tests/unit/test_package.py` - one test file
+- `cd frontend && npx vitest run src/App.test.tsx` - one frontend test file
+- `cd frontend && npm run dev` - dev server, proxies `/api/v1` to
+  `API_PROXY_TARGET`
 - `uv run ruff check . && uv run ruff format --check .` - lint
 
 ## Rules
