@@ -18,10 +18,11 @@ The skeleton issue creates these; keep this list in sync with the
 `Makefile`.
 
 - `uv sync` - install dependencies
-- `make test` - unit, frontend and integration tests
-- `uv run pytest tests/unit/test_x.py` - one test file
+- `make test` - run the tests. It currently runs the unit tests only;
+  frontend tests are added by #13 and integration tests by #18
+- `make lint` - lint, same as the ruff command below
+- `uv run pytest tests/unit/test_package.py` - one test file
 - `uv run ruff check . && uv run ruff format --check .` - lint
-- `uv run alembic upgrade head` - apply migrations
 
 ## Rules
 
