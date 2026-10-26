@@ -1,6 +1,6 @@
 # Runwatch specification
 
-Status: draft v2. This document defines the problem, scope, behavior, and acceptance criteria for Runwatch, the final project for AI Dev Tools Zoomcamp 2026. It is written before the code; tasks in the tracker reference the acceptance criteria IDs below (`AC-…`).
+Status: draft v2. This document defines the problem, scope, behavior, and acceptance criteria for Runwatch, Project 1 of AI Dev Tools Zoomcamp 2026. It is written before the code; tasks in the tracker reference the acceptance criteria IDs below (`AC-…`).
 
 ## Problem
 

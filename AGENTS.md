@@ -2,7 +2,7 @@
 
 A small job run tracker: users submit simulated batch jobs and watch them
 in a web UI, alerts fire on user impact, and a responder agent diagnoses
-and fixes the two demo incidents. Final project for AI Dev Tools Zoomcamp
+and fixes the two demo incidents. Project 1 of AI Dev Tools Zoomcamp
 2026. Everything runs on one local VM at no cost (Compose, then one kind
 cluster).
 
