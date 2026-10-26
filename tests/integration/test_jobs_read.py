@@ -45,7 +45,7 @@ def _schema():
 
 @pytest.fixture(scope="module")
 def app():
-    return create_app(Settings(database_url=DATABASE_URL))
+    return create_app(Settings(database_url=DATABASE_URL, sweeper_enabled=False))
 
 
 @pytest.fixture

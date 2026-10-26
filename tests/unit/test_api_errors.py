@@ -202,7 +202,7 @@ class FakeSession:
 
 @pytest.mark.parametrize("fail", [False, True])
 def test_get_session_rolls_back_and_closes(fail):
-    app = create_app(Settings(database_url=UNREACHABLE_URL))
+    app = create_app(Settings(database_url=UNREACHABLE_URL, sweeper_enabled=False))
     sessions: list[FakeSession] = []
 
     def factory() -> FakeSession:

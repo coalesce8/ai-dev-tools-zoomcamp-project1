@@ -13,6 +13,7 @@ from runwatch.api import health, internal, public
 from runwatch.api.errors import install_error_handlers
 from runwatch.db import make_engine, make_sessionmaker
 from runwatch.settings import Settings, load_settings
+from runwatch.sweeper import LeaseSweeper
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -23,10 +24,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        sweeper: LeaseSweeper | None = None
         try:
+            if settings.sweeper_enabled:
+                sweeper = LeaseSweeper(app.state.session_factory)
+                app.state.sweeper = sweeper
+                sweeper.start()
             yield
         finally:
-            engine.dispose()
+            try:
+                if sweeper is not None:
+                    sweeper.stop()
+            finally:
+                engine.dispose()
 
     app = FastAPI(title="Runwatch", lifespan=lifespan)
     app.state.settings = settings

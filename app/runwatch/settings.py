@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # SecretStr keeps the URL (and its password) out of reprs and logs.
     database_url: SecretStr
     db_connect_timeout_s: int = Field(default=2, ge=1)
+    sweeper_enabled: bool = True
 
 
 def load_settings() -> Settings:
