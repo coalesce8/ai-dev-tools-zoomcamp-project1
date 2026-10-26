@@ -28,6 +28,10 @@ The skeleton issue creates these; keep this list in sync with the
 - `cd frontend && npm run dev` - dev server, proxies `/api/v1` to
   `API_PROXY_TARGET`
 - `uv run ruff check . && uv run ruff format --check .` - lint
+- `uv run alembic upgrade head` - apply migrations (reads `DATABASE_URL`)
+
+DB-backed tests in `make test` need `DATABASE_URL` pointing at a Postgres
+database; they are skipped without it.
 
 ## Rules
 
