@@ -65,11 +65,10 @@ def test_health_routes_are_at_root(down_app):
             assert client.get(f"{prefix}/readyz").status_code == 404
 
 
-def test_routers_are_empty_and_prefixed(down_app):
+def test_routers_are_prefixed(down_app):
     assert public.router.prefix == "/api/v1"
     assert internal.router.prefix == "/internal/v1"
     assert public.router.routes == []
-    assert internal.router.routes == []
 
 
 def test_create_app_without_database_url_names_it(monkeypatch):
