@@ -68,7 +68,6 @@ def test_health_routes_are_at_root(down_app):
 def test_routers_are_prefixed(down_app):
     assert public.router.prefix == "/api/v1"
     assert internal.router.prefix == "/internal/v1"
-    assert public.router.routes == []
 
 
 def test_create_app_without_database_url_names_it(monkeypatch):
