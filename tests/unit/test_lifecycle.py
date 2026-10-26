@@ -45,14 +45,20 @@ def call(fn, *args, **kwargs):
     return result
 
 
-def raises(code: str, fn, *args, **kwargs) -> TransitionConflict:
+def rejects(exc: type[Exception], fn, *args, **kwargs) -> Exception:
+    """Assert that a transition raises ``exc`` and leaves its inputs unchanged."""
     before = copy.deepcopy((args, kwargs))
-    with pytest.raises(TransitionConflict) as info:
+    with pytest.raises(exc) as info:
         fn(*args, **kwargs)
     assert (args, kwargs) == before
-    assert info.value.code == code
-    assert str(info.value)
     return info.value
+
+
+def raises(code: str, fn, *args, **kwargs) -> TransitionConflict:
+    error = rejects(TransitionConflict, fn, *args, **kwargs)
+    assert error.code == code
+    assert str(error)
+    return error
 
 
 def new_job(max_attempts: int = 3, **overrides) -> JobSnapshot:
@@ -362,14 +368,12 @@ def test_max_attempts_one_fails_straight_away():
 @pytest.mark.parametrize("reason", ["", "   "])
 def test_fail_rejects_empty_reason(reason):
     job, attempt = running()
-    with pytest.raises(ValueError):
-        fail(job, attempt, sec(1), reason, FailureCause.WORKLOAD)
+    rejects(ValueError, fail, job, attempt, sec(1), reason, FailureCause.WORKLOAD)
 
 
 def test_fail_rejects_non_cause():
     job, attempt = running()
-    with pytest.raises(TypeError):
-        fail(job, attempt, sec(1), "x", "workload")
+    rejects(TypeError, fail, job, attempt, sec(1), "x", "workload")
 
 
 @pytest.mark.parametrize("case", NOT_CURRENT)
@@ -484,14 +488,12 @@ def test_cancel_running():
 
 def test_cancel_running_needs_attempt():
     job, _ = running()
-    with pytest.raises(ValueError):
-        cancel(job, None, sec(1))
+    rejects(ValueError, cancel, job, None, sec(1))
 
 
 def test_cancel_running_rejects_wrong_attempt():
     job, attempt = running()
-    with pytest.raises(ValueError):
-        cancel(job, replace(attempt, number=7), sec(1))
+    rejects(ValueError, cancel, job, replace(attempt, number=7), sec(1))
 
 
 def test_ac8_cancelled_attempt_cannot_report():
@@ -622,5 +624,4 @@ def test_module_is_pure():
 
 
 def test_naive_now_rejected():
-    with pytest.raises(ValueError):
-        claim(new_job(), datetime(2026, 1, 1, 12, 0, 0))
+    rejects(ValueError, claim, new_job(), datetime(2026, 1, 1, 12, 0, 0))
