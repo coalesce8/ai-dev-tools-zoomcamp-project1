@@ -6,6 +6,7 @@ import type { Stats } from "../api/stats";
 import { JOB_STATES } from "../api/types";
 import type { Job, JobPage, JobState } from "../api/types";
 import ErrorMessage from "../components/ErrorMessage";
+import { SubmitJobForm } from "../components/SubmitJobForm";
 import StateBadge from "../components/StateBadge";
 import SummaryBar from "../components/SummaryBar";
 import { ageSeconds, formatSeconds } from "../format";
@@ -119,7 +120,6 @@ export default function JobsPage() {
     refreshJobs();
     refreshStats();
   };
-  void refresh; // #15 passes this to the submit form
 
   function onFilterChange(value: string) {
     const next = new URLSearchParams(searchParams);
@@ -137,7 +137,7 @@ export default function JobsPage() {
   return (
     <section>
       <h1>Jobs</h1>
-      {/* Submit form (#15) */}
+      <SubmitJobForm onCreated={refresh} />
       <SummaryBar stats={statsState.stats} error={statsState.error} />
       <label>
         State{" "}

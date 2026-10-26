@@ -1,0 +1,17 @@
+.submit-job-form {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 24rem;
+  margin-bottom: 1rem;
+}
+
+.submit-job-form .field {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.submit-job-form .field-error {
+  color: #b00020;
+  font-size: 0.85rem;
+  margin: 0;
+}
