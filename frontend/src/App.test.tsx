@@ -23,9 +23,9 @@ describe("App routes", () => {
   });
 
   it("renders the jobs page at /", () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
     renderAt("/");
     expect(screen.getByRole("heading", { level: 1, name: "Jobs" })).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("renders the job detail page with the id from the URL", () => {

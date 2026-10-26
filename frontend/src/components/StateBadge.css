@@ -1,0 +1,26 @@
+.state-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+}
+.state-queued {
+  background-color: #5b6770;
+}
+.state-running {
+  background-color: #1d6fd1;
+}
+.state-succeeded {
+  background-color: #2a7d3f;
+}
+.state-failed {
+  background-color: #b3261e;
+}
+.state-stalled {
+  background-color: #a15c00;
+}
+.state-cancelled {
+  background-color: #6b4c9a;
+}
