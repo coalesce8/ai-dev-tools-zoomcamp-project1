@@ -13,3 +13,8 @@ frontend/dist/
 # Copies of third-party articles, kept for reference only
 _docs/artice1.md
 _docs/article2.md
+
+# Python build output
+*.egg-info/
+build/
+dist/
