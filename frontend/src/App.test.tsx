@@ -28,17 +28,18 @@ describe("App routes", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Jobs" })).toBeInTheDocument();
   });
 
-  it("renders the job detail page with the id from the URL", () => {
+  it("renders the job detail page and requests the job from the URL", () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
     renderAt("/jobs/abc123");
     expect(screen.getByRole("heading", { level: 1, name: "Job" })).toBeInTheDocument();
-    expect(screen.getByText("abc123")).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/jobs/abc123");
   });
 
-  it("shows a URL-encoded id decoded", () => {
+  it("decodes a URL-encoded id and re-encodes it for the API", () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
     renderAt("/jobs/a%20b");
     expect(screen.getByRole("heading", { level: 1, name: "Job" })).toBeInTheDocument();
-    expect(screen.getByText("a b")).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/jobs/a%20b");
   });
 
   it.each(["/nope", "/jobs", "/jobs/1/extra"])("renders not found at %s", (path) => {
@@ -52,6 +53,7 @@ describe("App routes", () => {
   });
 
   it.each(["/", "/jobs/abc", "/nope"])("shows the Runwatch layout linking to / at %s", (path) => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
     renderAt(path);
     expect(screen.getByRole("link", { name: "Runwatch" })).toHaveAttribute("href", "/");
   });

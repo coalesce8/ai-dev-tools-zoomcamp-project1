@@ -1,0 +1,42 @@
+.detail-section {
+  margin-top: 1.5rem;
+}
+.job-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.attempts {
+  list-style: none;
+  padding: 0;
+}
+.attempts li {
+  border-left: 3px solid #888;
+  padding-left: 0.75rem;
+  margin-bottom: 1rem;
+}
+.attempts dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.1rem 0.75rem;
+  margin: 0;
+}
+.attempts dd {
+  margin: 0;
+}
+.log-box {
+  max-height: 24rem;
+  overflow-y: auto;
+  border: 1px solid #888;
+}
+.log-lines {
+  margin: 0;
+  padding: 0.5rem;
+  white-space: pre-wrap;
+}
+.log-line {
+  display: block;
+}
+.log-attempt {
+  font-weight: bold;
+}
