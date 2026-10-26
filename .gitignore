@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+node_modules/
+frontend/dist/
+.env
+
+# Local Claude Code state
+.claude/settings.local.json
+
+# Copies of third-party articles, kept for reference only
+_docs/artice1.md
+_docs/article2.md
