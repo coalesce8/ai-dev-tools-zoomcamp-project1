@@ -2,4 +2,7 @@
 
 from fastapi import APIRouter
 
+from runwatch.api import worker_claim
+
 router = APIRouter(prefix="/internal/v1")
+router.include_router(worker_claim.router)
