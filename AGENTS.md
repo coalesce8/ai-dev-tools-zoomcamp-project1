@@ -23,6 +23,10 @@ The skeleton issue creates these; keep this list in sync with the
 - `make lint` - lint, same as the ruff command below
 - `uv run pytest tests/unit/test_package.py` - one test file
 - `uv run ruff check . && uv run ruff format --check .` - lint
+- `uv run alembic upgrade head` - apply migrations (reads `DATABASE_URL`)
+
+DB-backed tests in `make test` need `DATABASE_URL` pointing at a Postgres
+database; they are skipped without it.
 
 ## Rules
 
