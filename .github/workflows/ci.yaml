@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Explicit bash adds -o pipefail (the implicit default is only bash -e), so a
+# failing make piped into tee fails the step.
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
