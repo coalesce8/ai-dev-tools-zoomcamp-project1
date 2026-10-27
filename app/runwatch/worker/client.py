@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from runwatch.api.job_schemas import WorkloadSpec
 from runwatch.lifecycle import FailureCause
+from runwatch.telemetry import inject_context
 
 HTTP_TIMEOUT_S = 2
 
@@ -60,9 +61,14 @@ class HttpWorkerApi:
         self._base = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=HTTP_TIMEOUT_S)
 
-    def _post(self, path: str, body: dict[str, Any]) -> httpx.Response:
+    def _post(
+        self, path: str, body: dict[str, Any], traced: bool = False
+    ) -> httpx.Response:
+        # Only heartbeat and result carry the attempt's trace context; the
+        # claim poll never does.
+        headers = (inject_context() or None) if traced else None
         try:
-            response = self._client.post(self._base + path, json=body)
+            response = self._client.post(self._base + path, json=body, headers=headers)
         except httpx.HTTPError as exc:
             raise ApiUnavailable(type(exc).__name__) from None
         return response
@@ -98,7 +104,7 @@ class HttpWorkerApi:
             "lines": [{"ts": item.ts.isoformat(), "line": item.line} for item in lines]
         }
         path = f"/internal/v1/worker/attempts/{attempt_id}/heartbeat"
-        self._check(self._post(path, body))
+        self._check(self._post(path, body, traced=True))
 
     def result(
         self,
@@ -112,4 +118,4 @@ class HttpWorkerApi:
             body["reason"] = reason
             body["cause"] = str(cause.value) if cause is not None else None
         path = f"/internal/v1/worker/attempts/{attempt_id}/result"
-        self._check(self._post(path, body))
+        self._check(self._post(path, body, traced=True))

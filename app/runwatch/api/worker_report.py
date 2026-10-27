@@ -39,6 +39,7 @@ from runwatch.lifecycle import (
     succeed,
 )
 from runwatch.models import Attempt, Job, LogLine
+from runwatch.telemetry import annotate_current_span
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ def post_heartbeat(
     session: Annotated[Session, Depends(get_session)],
 ) -> HeartbeatOut:
     job, attempt, now = _lock(session, attempt_id)
+    annotate_current_span(job.id, attempt.number)
     try:
         new_attempt = heartbeat(_job_snapshot(job), _attempt_snapshot(attempt), now)
     except TransitionConflict:
@@ -239,6 +241,7 @@ def post_result(
     session: Annotated[Session, Depends(get_session)],
 ) -> ResultOut:
     job, attempt, now = _lock(session, attempt_id)
+    annotate_current_span(job.id, attempt.number)
     job_snap = _job_snapshot(job)
     attempt_snap = _attempt_snapshot(attempt)
     try:
