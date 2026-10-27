@@ -1,0 +1,2 @@
+{"received_at": "2026-03-01T14:00:00Z", "kind": "firing", "disposition": "started", "status": "firing", "startsAt": "2026-03-01T14:00:00Z"}
+{"received_at": "2026-03-01T14:02:00Z", "kind": "firing", "disposition": "recorded_in_progress", "status": "firing", "startsAt": "2026-03-01T14:00:00Z"}
