@@ -73,7 +73,7 @@ services:
     mem_limit: 128m
     environment:
       RUNWATCH_API_URL: http://api:8000
-      LOADGEN_INTERVAL_S: ${LOADGEN_INTERVAL_S:-10}
+      LOADGEN_INTERVAL_S: ${LOADGEN_INTERVAL_S:-20}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       api:
