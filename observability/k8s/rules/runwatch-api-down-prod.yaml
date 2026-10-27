@@ -1,7 +1,7 @@
 # One RunwatchApiDown rule per environment; Compose has only `local`.
 # The env label of the firing alert comes from the selector.
 groups:
-  - name: runwatch-api-down-local
+  - name: runwatch-api-down-prod
     interval: 15s
     rules:
       - alert: RunwatchApiDown
