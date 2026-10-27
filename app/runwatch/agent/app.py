@@ -28,7 +28,6 @@ from runwatch.agent.reports import redact, render_report
 from runwatch.agent.runs import (
     Clock,
     NoModelResponder,
-    PlaceholderResponder,
     Responder,
     RunController,
     utc_now,
@@ -72,6 +71,27 @@ def _authorized(request: Request, token: str) -> bool:
     return hmac.compare_digest(supplied.strip().encode(), token.encode())
 
 
+def build_responder(settings: AgentSettings) -> Responder:
+    """The real responder: Anthropic client, tools from the environment, loop."""
+    # Imported here so that without a key nothing of the SDK is loaded.
+    from runwatch.agent.loop import ClaudeResponder
+    from runwatch.agent.model import AnthropicModelClient
+    from runwatch.agent.tools import ToolRunner
+
+    assert settings.anthropic_api_key is not None
+    client = AnthropicModelClient(
+        settings.anthropic_api_key.get_secret_value(), settings.agent_model_timeout_s
+    )
+    return ClaudeResponder(
+        client,
+        ToolRunner.from_environment(),
+        model=settings.agent_model,
+        retry_delay_s=settings.agent_api_retry_delay_s,
+        verify_interval_s=settings.agent_verify_interval_s,
+        verify_timeout_s=settings.agent_verify_timeout_s,
+    )
+
+
 def create_app(
     settings: AgentSettings | None = None,
     responder: Responder | None = None,
@@ -82,7 +102,7 @@ def create_app(
         settings = load_agent_settings()
     if responder is None:
         responder = (
-            PlaceholderResponder() if settings.has_api_key else NoModelResponder()
+            build_responder(settings) if settings.has_api_key else NoModelResponder()
         )
 
     controller = RunController(

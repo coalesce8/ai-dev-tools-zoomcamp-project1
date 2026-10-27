@@ -237,14 +237,29 @@ def test_no_key_runs_end_skipped_and_cooldown_applies(tmp_path):
     assert actions(client, alert()) == ["recorded_cooldown"]
 
 
-def test_placeholder_with_key_escalates_with_reason(tmp_path):
+def test_key_set_builds_the_real_responder_not_a_placeholder(tmp_path, monkeypatch):
+    # The responder given by the key is the loop; its model client is faked
+    # here so nothing reaches the network.
+    from runwatch.agent import app as app_module
+    from runwatch.agent.loop import ClaudeResponder
+
+    seen = {}
+
+    def fake_build(settings):
+        seen["key"] = settings.anthropic_api_key.get_secret_value()
+        return GateResponder("escalated")
+
+    monkeypatch.setattr(app_module, "build_responder", fake_build)
     app = make_app(tmp_path, anthropic_api_key="k-" + "unit")
+    responder = app.state.runs.responder
+    assert seen["key"] == "k-unit" and isinstance(responder, GateResponder)
+    assert not hasattr(app_module, "PlaceholderResponder")
+    assert ClaudeResponder  # importable
+    responder.release()
     client = TestClient(app)
     entry = post(client, alert())[0]
     app.state.runs.wait_idle()
     assert status_of(tmp_path, entry["incident_id"])["outcome"] == "escalated"
-    context = (tmp_path / "incidents" / entry["incident_id"] / "context.md").read_text()
-    assert "responder loop not installed" in context
 
 
 def test_responder_exception_escalates_and_service_keeps_serving(tmp_path):

@@ -36,7 +36,7 @@ OUTCOME_SKIPPED = "skipped_no_model"
 
 
 class Responder(Protocol):
-    """The seam #28 fills: diagnose and fix one incident, return its outcome."""
+    """Diagnose and fix one incident; return its outcome (the loop fills this)."""
 
     def respond(self, incident: Incident) -> str: ...
 
@@ -46,15 +46,6 @@ class NoModelResponder:
 
     def respond(self, incident: Incident) -> str:
         return OUTCOME_SKIPPED
-
-
-class PlaceholderResponder:
-    """Used with ANTHROPIC_API_KEY until the responder loop exists (#28)."""
-
-    def respond(self, incident: Incident) -> str:
-        with incident.context_file.open("a") as handle:
-            handle.write("\nEscalated: responder loop not installed\n")
-        return OUTCOME_ESCALATED
 
 
 Clock = Callable[[], datetime]
