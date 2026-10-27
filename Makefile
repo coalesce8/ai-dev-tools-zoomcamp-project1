@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-frontend test-integration need-database-url lint kind-up kind-down kind-load k8s-render k8s-validate k8s-secrets
+.PHONY: test test-unit test-frontend test-integration need-database-url lint kind-up kind-down kind-load k8s-render k8s-validate k8s-secrets rollback break-worker bad-release heal
 
 KIND_KUBECONFIG ?= $(HOME)/.kube/runwatch-kind.config
 KIND_MIN_AVAILABLE_MB ?= 1500
@@ -60,3 +60,16 @@ k8s-validate:
 # Talks to the kind cluster unless DRY_RUN=1.
 k8s-secrets:
 	scripts/k8s-secrets.sh $(ENV)
+
+# Rollback and drills act on the kind cluster; DRY_RUN=1 prints instead of running.
+rollback:
+	scripts/drills/rollback.sh
+
+break-worker:
+	scripts/drills/break-worker.sh
+
+bad-release:
+	scripts/drills/bad-release.sh
+
+heal:
+	scripts/drills/heal.sh
