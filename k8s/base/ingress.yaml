@@ -1,0 +1,27 @@
+# The host is set by each overlay. Needs a controller serving class nginx (#33).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runwatch
+  labels:
+    app.kubernetes.io/name: runwatch
+    app.kubernetes.io/part-of: runwatch
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 8080
