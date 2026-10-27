@@ -1,0 +1,97 @@
+name: runwatch
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_DB: runwatch
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - runwatch-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d runwatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    image: runwatch-app
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    mem_limit: 256m
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/runwatch
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: runwatch-app
+    build: .
+    command: ["uvicorn", "--factory", "runwatch.api.app:create_app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/runwatch
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  worker:
+    image: runwatch-app
+    build: .
+    command: ["python", "-m", "runwatch.worker"]
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      RUNWATCH_API_URL: http://api:8000
+      WORKER_ID: ${WORKER_ID:-}
+      WORKER_FAULT: ${WORKER_FAULT:-}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  loadgen:
+    image: runwatch-app
+    build: .
+    command: ["python", "-m", "runwatch.loadgen"]
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      RUNWATCH_API_URL: http://api:8000
+      LOADGEN_INTERVAL_S: ${LOADGEN_INTERVAL_S:-10}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  frontend:
+    image: runwatch-frontend
+    build: ./frontend
+    restart: unless-stopped
+    mem_limit: 64m
+    environment:
+      API_UPSTREAM: http://api:8000
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  runwatch-pgdata:
+    name: runwatch-pgdata

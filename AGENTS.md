@@ -18,6 +18,9 @@ The skeleton issue creates these; keep this list in sync with the
 `Makefile`.
 
 - `uv sync` - install dependencies
+- `docker compose up --build` - run the full system, UI at
+  http://localhost:8080
+- `docker compose stop` - stop it (never `down -v`)
 - `cd frontend && npm ci` - install frontend dependencies
 - `make test` - run the tests. It currently runs the unit and frontend
   tests; integration tests are added by #18
