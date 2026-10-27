@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  labels: {app: tempo}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: tempo}
+  template:
+    metadata:
+      labels: {app: tempo}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.10.8
+          args: ["-config.file=/etc/tempo/config.yaml"]
+          env:
+            - {name: GOMEMLIMIT, value: 200MiB}
+          ports:
+            - {name: otlp-http, containerPort: 4318}
+            - {name: http, containerPort: 3200}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 24
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/tempo/config.yaml, subPath: tempo.yaml, readOnly: true}
+            - {name: data, mountPath: /var/tempo}
+      volumes:
+        - name: config
+          configMap: {name: tempo-config}
+        - name: data
+          emptyDir: {sizeLimit: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  labels: {app: tempo}
+spec:
+  type: ClusterIP
+  selector: {app: tempo}
+  ports:
+    - {name: otlp-http, port: 4318, targetPort: otlp-http}
+    - {name: http, port: 3200, targetPort: http}
