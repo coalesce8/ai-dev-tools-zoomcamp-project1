@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: runwatch-prod
+  labels:
+    app.kubernetes.io/part-of: runwatch
+    env: prod

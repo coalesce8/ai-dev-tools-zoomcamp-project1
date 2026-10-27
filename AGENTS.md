@@ -36,6 +36,10 @@ The skeleton issue creates these; keep this list in sync with the
   Compose first; see `docs/runbooks/kind-cluster.md`)
 - `make kind-down` - stop the cluster (never delete it)
 - `make kind-load IMAGES="a:tag b:tag"` - load local images into the cluster
+- `make k8s-render ENV=dev|prod`, `make k8s-validate`, `make k8s-secrets ENV=dev|prod` -
+  render, validate (kubeconform in container `runwatch-kubeconform`) and
+  create the Secrets for the k8s manifests in `k8s/`. All offline except
+  `k8s-secrets` without `DRY_RUN=1`
 - `uv run pytest tests/unit/test_package.py` - one test file
 - `cd frontend && npx vitest run src/App.test.tsx` - one frontend test file
 - `cd frontend && npm run dev` - dev server, proxies `/api/v1` to

@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels: &labels
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: runwatch
+spec:
+  selector: *labels
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels: &labels
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: runwatch
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: *labels
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: frontend
+          image: ghcr.io/coalesce8/runwatch-frontend
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: API_UPSTREAM
+              value: http://api:8000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 24Mi
+            limits:
+              memory: 48Mi
