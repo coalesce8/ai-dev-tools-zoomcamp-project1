@@ -16,7 +16,12 @@ from runwatch.api.errors import install_error_handlers
 from runwatch.db import make_engine, make_sessionmaker
 from runwatch.settings import Settings, load_settings
 from runwatch.sweeper import LeaseSweeper
-from runwatch.telemetry import API_SERVICE, build_tracer_provider, set_tracer_provider
+from runwatch.telemetry import (
+    API_SERVICE,
+    build_tracer_provider,
+    scrub_server_span,
+    set_tracer_provider,
+)
 
 # Workers poll the claim route every second and probes run constantly: no
 # server span for them, so idle traffic leaves no traces.
@@ -66,7 +71,11 @@ def create_app(
     app.state.session_factory = make_sessionmaker(engine)
 
     FastAPIInstrumentor.instrument_app(
-        app, tracer_provider=provider, excluded_urls=UNTRACED_URLS
+        app,
+        tracer_provider=provider,
+        excluded_urls=UNTRACED_URLS,
+        server_request_hook=scrub_server_span,
+        exclude_spans=["receive", "send"],
     )
     install_error_handlers(app)
     app.include_router(health.router)

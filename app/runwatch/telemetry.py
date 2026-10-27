@@ -160,3 +160,26 @@ def annotate_current_span(
     span = trace.get_current_span()
     for key, value in job_attributes(job_id, attempt_number).items():
         span.set_attribute(key, value)
+
+
+def scrub_server_span(span: Span, scope: Any = None) -> None:
+    """``server_request_hook`` for the FastAPI instrumentation.
+
+    The instrumentation records an unhandled exception on the server span with
+    its message and stack, and puts the message in the status description. An
+    exception message can hold a connection string, so on this span an error
+    only sets status ERROR.
+    """
+    if not span.is_recording():
+        return
+    original = span.set_status
+
+    def set_status(status: Status | StatusCode, description: str | None = None):
+        code = status.status_code if isinstance(status, Status) else status
+        original(Status(code))
+
+    def record_exception(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    span.set_status = set_status  # type: ignore[method-assign]
+    span.record_exception = record_exception  # type: ignore[method-assign]
