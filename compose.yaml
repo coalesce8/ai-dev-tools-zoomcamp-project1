@@ -37,6 +37,7 @@ services:
     mem_limit: 256m
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/runwatch
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -59,6 +60,7 @@ services:
       # Bare name: passed through only when set (an empty WORKER_ID is rejected by the worker).
       - WORKER_ID
       - WORKER_FAULT
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
     depends_on:
       api:
         condition: service_healthy
@@ -72,6 +74,7 @@ services:
     environment:
       RUNWATCH_API_URL: http://api:8000
       LOADGEN_INTERVAL_S: ${LOADGEN_INTERVAL_S:-10}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       api:
         condition: service_healthy
@@ -94,6 +97,112 @@ services:
       timeout: 3s
       retries: 12
 
+  # Observability. The app services do not depend on any of these: a telemetry
+  # outage must not stop the app. Nothing but Grafana and Prometheus is
+  # published (3000/9090 belong to another stack on this VM).
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=2d
+      - --storage.tsdb.retention.size=512MB
+      # Metrics are pushed by the collector over OTLP, not scraped.
+      - --web.enable-otlp-receiver
+      # Store a zero sample at each counter's start time, so increase() also
+      # counts the very first event of a new series.
+      - --enable-feature=created-timestamp-zero-ingestion
+    restart: unless-stopped
+    mem_limit: 256m
+    ports:
+      - "${OBSERVABILITY_BIND:-127.0.0.1}:${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - runwatch-prometheus:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  loki:
+    image: grafana/loki:3.7.8
+    command: ["-config.file=/etc/loki/config.yaml"]
+    restart: unless-stopped
+    mem_limit: 256m
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/config.yaml:ro
+      - runwatch-loki:/loki
+
+  tempo:
+    image: grafana/tempo:2.10.8
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    restart: unless-stopped
+    mem_limit: 256m
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/config.yaml:ro
+      - runwatch-tempo:/var/tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    mem_limit: 256m
+    ports:
+      - "${OBSERVABILITY_BIND:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
+    environment:
+      # Anonymous access as Admin with no login form. Acceptable only because
+      # the port binds to 127.0.0.1 by default (OBSERVABILITY_BIND).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/runwatch.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      # No background plugin downloads at startup (they raced with the bundled
+      # datasources and need internet).
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-3001}/
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - runwatch-grafana:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
 volumes:
   runwatch-pgdata:
     name: runwatch-pgdata
+  runwatch-prometheus:
+    name: runwatch-prometheus
+  runwatch-loki:
+    name: runwatch-loki
+  runwatch-tempo:
+    name: runwatch-tempo
+  runwatch-grafana:
+    name: runwatch-grafana

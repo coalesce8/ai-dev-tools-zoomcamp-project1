@@ -1,0 +1,55 @@
+# The app sends all three signals here over OTLP; the Collector fans them out.
+# Only the three OTLP-to-backend exporters below: telemetry content never
+# reaches the collector's own logs.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 96
+    spike_limit_mib: 24
+  # The environment of this stack (local under Compose, dev/prod on Kubernetes).
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: ${env:DEPLOYMENT_ENVIRONMENT}
+        action: upsert
+  # Decision: Prometheus can promote a resource attribute only under its
+  # translated name (deployment_environment). The spec wants the label `env`,
+  # so copy the resource attribute to a data point attribute named `env`.
+  transform/env:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["env"], resource.attributes["deployment.environment"])
+  batch: {}
+
+exporters:
+  otlp_http/prometheus:
+    endpoint: http://prometheus:9090/api/v1/otlp
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+  otlp_http/tempo:
+    endpoint: http://tempo:4318
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, transform/env, batch]
+      exporters: [otlp_http/prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp_http/loki]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp_http/tempo]
