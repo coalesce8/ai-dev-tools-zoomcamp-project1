@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-frontend test-integration test-alerts need-database-url lint kind-up kind-down kind-load k8s-render k8s-validate k8s-secrets rollback break-worker bad-release heal
+.PHONY: test test-unit test-frontend test-integration test-alerts need-database-url lint kind-up kind-down kind-load k8s-render k8s-validate k8s-secrets rollback break-worker bad-release heal deploy
 
 KIND_KUBECONFIG ?= $(HOME)/.kube/runwatch-kind.config
 KIND_MIN_AVAILABLE_MB ?= 1500
@@ -79,3 +79,8 @@ bad-release:
 
 heal:
 	scripts/drills/heal.sh
+
+# Deploys the images of SHA (default: HEAD) to the kind cluster; DRY_RUN=1 only prints the plan.
+deploy:
+	@case "$(ENV)" in dev|prod) ;; *) echo "ENV must be dev or prod, e.g. make deploy ENV=dev [SHA=<40-hex sha>]" >&2; exit 1;; esac
+	scripts/deploy.sh $(ENV) $(or $(SHA),$(shell git rev-parse HEAD))
