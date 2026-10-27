@@ -1,0 +1,14 @@
+# Metrics arrive through the OTLP receiver (--web.enable-otlp-receiver), so
+# there is nothing to scrape except Prometheus itself.
+global:
+  scrape_interval: 15s
+
+storage:
+  tsdb:
+    # The Collector batches and retries, so samples can arrive slightly late.
+    out_of_order_time_window: 5m
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
