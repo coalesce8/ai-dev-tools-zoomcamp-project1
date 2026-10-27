@@ -19,6 +19,9 @@ import httpx
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from runwatch.logs import LogSettingsError, configure_logging
+from runwatch.telemetry import LOADGEN_SERVICE, build_logger_provider
+
 logger = logging.getLogger(__name__)
 
 HTTP_TIMEOUT_S = 5
@@ -121,17 +124,15 @@ class Loadgen:
         except Exception as exc:
             logger.warning("submit failed: %s", type(exc).__name__)
         else:
-            logger.info("submitted job_id=%s", job_id)
+            logger.info("submitted job_id=%s", job_id, extra={"job_id": str(job_id)})
 
 
 def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logs = build_logger_provider(LOADGEN_SERVICE)
     try:
+        configure_logging(LOADGEN_SERVICE, logs)
         settings = load_loadgen_settings()
-    except LoadgenSettingsError as exc:
+    except (LogSettingsError, LoadgenSettingsError) as exc:
         print(exc, file=sys.stderr)
         return 2
     stop = threading.Event()
@@ -142,6 +143,7 @@ def main() -> int:
         settings.loadgen_interval_s,
         stop=stop,
     ).run()
+    logs.shutdown()
     return 0
 
 

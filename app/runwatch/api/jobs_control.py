@@ -201,7 +201,7 @@ def post_requeue(
     job_id: str, session: Annotated[Session, Depends(get_session)]
 ) -> JobOut:
     job = requeue_job(session, _parse_id(job_id))
-    logger.info("requeued job_id=%s", job.id)
+    logger.info("requeued job_id=%s", job.id, extra={"job_id": str(job.id)})
     return JobOut.model_validate(job)
 
 
@@ -211,7 +211,7 @@ def post_cancel(
 ) -> JobOut:
     job = cancel_job(session, _parse_id(job_id))
     request.app.state.metrics.cancelled()
-    logger.info("cancelled job_id=%s", job.id)
+    logger.info("cancelled job_id=%s", job.id, extra={"job_id": str(job.id)})
     return JobOut.model_validate(job)
 
 

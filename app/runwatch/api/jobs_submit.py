@@ -46,5 +46,5 @@ def submit_job(
     request.app.state.metrics.submitted()
     session.refresh(job)
     response.headers["Location"] = f"/api/v1/jobs/{job.id}"
-    logger.info("job submitted job_id=%s", job.id)
+    logger.info("job submitted job_id=%s", job.id, extra={"job_id": str(job.id)})
     return job

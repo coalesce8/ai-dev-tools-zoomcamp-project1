@@ -14,17 +14,20 @@ from opentelemetry.instrumentation.fastapi import (
     FastAPIInstrumentor,
     _get_route_details,
 )
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.trace import TracerProvider
 
 from runwatch.api import health, internal, public
 from runwatch.api.errors import install_error_handlers
 from runwatch.db import make_engine, make_sessionmaker
+from runwatch.logs import configure_logging
 from runwatch.metrics import build_metrics, register_db_gauges
 from runwatch.settings import Settings, load_settings
 from runwatch.sweeper import LeaseSweeper
 from runwatch.telemetry import (
     API_SERVICE,
+    build_logger_provider,
     build_meter_provider,
     build_tracer_provider,
     scrub_server_span,
@@ -70,6 +73,7 @@ def create_app(
     settings: Settings | None = None,
     tracer_provider: TracerProvider | None = None,
     meter_provider: MeterProvider | None = None,
+    logger_provider: LoggerProvider | None = None,
 ) -> FastAPI:
     if settings is None:
         settings = load_settings()
@@ -84,6 +88,12 @@ def create_app(
     if meter_provider is None:
         meter_provider = build_meter_provider(API_SERVICE)
     meters = meter_provider
+
+    owns_logger_provider = logger_provider is None
+    if logger_provider is None:
+        logger_provider = build_logger_provider(API_SERVICE)
+    logs = logger_provider
+    configure_logging(API_SERVICE, logs)
 
     engine = make_engine(settings)
 
@@ -113,10 +123,16 @@ def create_app(
                     try:
                         engine.dispose()
                     finally:
-                        if owns_provider:
-                            provider.shutdown()
-                        else:
-                            provider.force_flush()
+                        try:
+                            if owns_provider:
+                                provider.shutdown()
+                            else:
+                                provider.force_flush()
+                        finally:
+                            if owns_logger_provider:
+                                logs.shutdown()
+                            else:
+                                logs.force_flush()
 
     app = FastAPI(title="Runwatch", lifespan=lifespan)
     app.state.settings = settings

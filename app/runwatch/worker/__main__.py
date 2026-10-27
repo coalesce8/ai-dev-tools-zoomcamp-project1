@@ -5,8 +5,10 @@ import signal
 import sys
 import threading
 
+from runwatch.logs import LogSettingsError, configure_logging
 from runwatch.telemetry import (
     WORKER_SERVICE,
+    build_logger_provider,
     build_tracer_provider,
     set_tracer_provider,
 )
@@ -16,13 +18,11 @@ from runwatch.worker.settings import WorkerSettingsError, load_worker_settings
 
 
 def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logs = build_logger_provider(WORKER_SERVICE)
     try:
+        configure_logging(WORKER_SERVICE, logs)
         settings = load_worker_settings()
-    except WorkerSettingsError as exc:
+    except (LogSettingsError, WorkerSettingsError) as exc:
         print(exc, file=sys.stderr)
         return 2
     provider = build_tracer_provider(WORKER_SERVICE)
@@ -36,11 +36,16 @@ def main() -> int:
         worker_fault=settings.worker_fault,
         stop=stop,
     )
-    logging.getLogger(__name__).info("worker started worker_id=%s", settings.worker_id)
+    logging.getLogger(__name__).info(
+        "worker started worker_id=%s",
+        settings.worker_id,
+        extra={"worker_id": settings.worker_id},
+    )
     try:
         worker.run()
     finally:
         provider.shutdown()
+        logs.shutdown()
     return 0
 
 
