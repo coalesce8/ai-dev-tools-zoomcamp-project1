@@ -14,8 +14,12 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from opentelemetry.context import Context
+from opentelemetry.trace import Tracer
+
 from runwatch.api.job_schemas import WorkloadMode, WorkloadSpec
 from runwatch.lifecycle import FailureKind, failure_cause_for
+from runwatch.telemetry import get_tracer, job_attributes, link_from, start_span
 from runwatch.worker.client import (
     ApiUnavailable,
     AttemptNotCurrent,
@@ -58,6 +62,7 @@ class Worker:
         monotonic: Callable[[], float] = time.monotonic,
         utcnow: Callable[[], datetime] = _utcnow,
         rng: random.Random | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self.api = api
         self.worker_id = worker_id
@@ -66,6 +71,7 @@ class Worker:
         self.monotonic = monotonic
         self.utcnow = utcnow
         self.rng = rng if rng is not None else random.Random()
+        self._tracer = tracer
         self.fail_all = worker_fault == FAULT_FAIL_ALL
         if worker_fault and not self.fail_all:
             logger.warning("%s has an unknown value; running with no fault", FAULT_ENV)
@@ -111,22 +117,42 @@ class Worker:
             f"attempt_number={claim.attempt_number} worker_id={self.worker_id}"
         )
         logger.info("attempt started %s", ctx)
-        try:
+        tracer = self._tracer if self._tracer is not None else get_tracer()
+        attrs = job_attributes(claim.job_id, claim.attempt_number)
+        # Each attempt is its own trace: a root span (empty context) linked to
+        # the submit span. Every span ends before this method returns.
+        with start_span(
+            "attempt",
+            tracer=tracer,
+            context=Context(),
+            links=link_from(claim.trace_context),
+            attributes=attrs,
+            expected=(_Ended,),
+        ):
             try:
-                outcome = self._work(claim)
+                try:
+                    with start_span(
+                        "run", tracer=tracer, attributes=attrs, expected=(_Ended,)
+                    ):
+                        outcome = self._work(claim)
+                except _Ended:
+                    logger.info("attempt ended without a result %s", ctx)
+                    return
+                except Exception as exc:
+                    name = type(exc).__name__
+                    logger.error("attempt raised error=%s %s", name, ctx)
+                    cause = failure_cause_for(FailureKind.WORKER_EXCEPTION)
+                    outcome = ("failed", f"worker error: {name}", cause)
+                with start_span(
+                    "result", tracer=tracer, attributes=attrs, expected=(_Ended,)
+                ):
+                    self._send_result(claim, outcome, ctx)
             except _Ended:
                 logger.info("attempt ended without a result %s", ctx)
-                return
             except Exception as exc:
-                name = type(exc).__name__
-                logger.error("attempt raised error=%s %s", name, ctx)
-                cause = failure_cause_for(FailureKind.WORKER_EXCEPTION)
-                outcome = ("failed", f"worker error: {name}", cause)
-            self._send_result(claim, outcome, ctx)
-        except _Ended:
-            logger.info("attempt ended without a result %s", ctx)
-        except Exception as exc:
-            logger.error("attempt handling failed error=%s %s", type(exc).__name__, ctx)
+                logger.error(
+                    "attempt handling failed error=%s %s", type(exc).__name__, ctx
+                )
 
     def _work(self, claim: Claim):
         """Run the steps; return the result as (outcome, reason, cause)."""

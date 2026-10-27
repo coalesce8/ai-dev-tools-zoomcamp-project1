@@ -81,7 +81,7 @@ def test_valid_submit(client, session):
     assert job.attempt_count == 0
     assert job.last_attempt_number == 0
     assert job.queued_at is not None and job.created_at is not None
-    assert job.trace_context is None
+    assert set(job.trace_context) == {"traceparent"}  # stored by #21
     assert job.spec == body["spec"]
     assert session.scalar(select(func.count()).where(Attempt.job_id == job.id)) == 0
 

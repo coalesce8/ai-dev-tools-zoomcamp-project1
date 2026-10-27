@@ -5,6 +5,11 @@ import signal
 import sys
 import threading
 
+from runwatch.telemetry import (
+    WORKER_SERVICE,
+    build_tracer_provider,
+    set_tracer_provider,
+)
 from runwatch.worker.client import HttpWorkerApi
 from runwatch.worker.runner import Worker
 from runwatch.worker.settings import WorkerSettingsError, load_worker_settings
@@ -20,6 +25,8 @@ def main() -> int:
     except WorkerSettingsError as exc:
         print(exc, file=sys.stderr)
         return 2
+    provider = build_tracer_provider(WORKER_SERVICE)
+    set_tracer_provider(provider)
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
@@ -30,7 +37,10 @@ def main() -> int:
         stop=stop,
     )
     logging.getLogger(__name__).info("worker started worker_id=%s", settings.worker_id)
-    worker.run()
+    try:
+        worker.run()
+    finally:
+        provider.shutdown()
     return 0
 
 
