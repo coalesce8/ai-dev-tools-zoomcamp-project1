@@ -52,7 +52,7 @@ def clean(engine):
 
 @pytest.fixture
 def client(clean):
-    app = create_app(Settings(database_url=DATABASE_URL))
+    app = create_app(Settings(database_url=DATABASE_URL, sweeper_enabled=False))
     with TestClient(app) as client:
         yield client
 

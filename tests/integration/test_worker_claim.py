@@ -53,7 +53,7 @@ def session(factory):
 
 @pytest.fixture
 def client(engine, factory):
-    app = create_app(Settings(database_url=DATABASE_URL))
+    app = create_app(Settings(database_url=DATABASE_URL, sweeper_enabled=False))
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
 
