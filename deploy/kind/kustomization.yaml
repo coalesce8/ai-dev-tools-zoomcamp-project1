@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ingress-nginx.yaml
+  - namespaces.yaml
+patches:
+  - target:
+      kind: Deployment
+      name: ingress-nginx-controller
+      namespace: ingress-nginx
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+      spec:
+        template:
+          spec:
+            containers:
+              - name: controller
+                resources:
+                  requests:
+                    memory: 100Mi
+                  limits:
+                    memory: 200Mi
+  - target:
+      kind: ConfigMap
+      name: ingress-nginx-controller
+      namespace: ingress-nginx
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+      data:
+        allow-snippet-annotations: "false"
