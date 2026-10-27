@@ -1,4 +1,4 @@
-# One Python image for migrate, api, worker and loadgen (they differ by command).
+# One Python image for migrate, api, worker, loadgen and agent (they differ by command).
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.11 /uv /usr/local/bin/uv
@@ -21,6 +21,9 @@ COPY alembic/ alembic/
 RUN uv sync --locked --no-dev
 
 RUN useradd --system --uid 10001 --no-create-home runwatch
+# Incident directory of the responder agent: created before the volume is first
+# mounted, so the named volume copies this ownership.
+RUN mkdir -p /data/incidents && chown runwatch /data/incidents
 USER runwatch
 
 EXPOSE 8000
