@@ -1,0 +1,232 @@
+name: CD
+
+# Push to main: CI, build and push both images (tag = commit SHA), deploy to
+# dev, then deploy to prod after the `prod` environment's reviewer approves.
+# Manual dispatch (the second rollback path): redeploy the images of a
+# previous `sha` to `environment`. Deploy jobs run on the self-hosted runner
+# on the VM, which reaches the kind cluster; see docs/runbooks/deploy.md and
+# docs/runbooks/self-hosted-runner.md.
+#
+# Never add a pull_request, pull_request_target or workflow_run trigger: the
+# self-hosted runner must only run code that is on main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy to
+        type: choice
+        options: [dev, prod]
+        required: true
+      sha:
+        description: Full 40-character commit SHA on main whose images to deploy (empty means the commit this run started on)
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  IMAGE_APP: ghcr.io/coalesce8/runwatch-app
+  IMAGE_FRONTEND: ghcr.io/coalesce8/runwatch-frontend
+
+jobs:
+  ci:
+    name: ci
+    if: ${{ github.event_name == 'push' }}
+    uses: ./.github/workflows/ci.yaml
+    permissions:
+      contents: read
+
+  build:
+    name: build
+    needs: ci
+    if: ${{ !cancelled() && (needs.ci.result == 'success' || needs.ci.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Choose the SHA to build
+        id: sha
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          sha="${INPUT_SHA:-$GITHUB_SHA}"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "sha must be 40 lowercase hex characters"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Skip the push when both tags already exist (redeploy of a built SHA)
+        id: exists
+        env:
+          SHA: ${{ steps.sha.outputs.sha }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          if [ -n "$INPUT_SHA" ] \
+            && docker buildx imagetools inspect "$IMAGE_APP:$SHA" > /dev/null 2>&1 \
+            && docker buildx imagetools inspect "$IMAGE_FRONTEND:$SHA" > /dev/null 2>&1; then
+            echo "both images exist for $SHA, nothing to build"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ steps.exists.outputs.exists != 'true' }}
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+          persist-credentials: false
+      - name: Build and push runwatch-app
+        if: ${{ steps.exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE_APP }}:${{ steps.sha.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+      - name: Build and push runwatch-frontend
+        if: ${{ steps.exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE_FRONTEND }}:${{ steps.sha.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy-dev:
+    name: deploy-dev
+    needs: build
+    if: ${{ needs.build.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')) }}
+    runs-on: [self-hosted, runwatch-vm]
+    timeout-minutes: 30
+    environment: dev
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the SHA to be on main
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          if [ -n "$INPUT_SHA" ] && ! git merge-base --is-ancestor "$INPUT_SHA" origin/main; then
+            echo "$INPUT_SHA is not a commit on main"
+            exit 1
+          fi
+      - name: Log in to ghcr.io
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Keep the credentials in the job's temp directory, not in ~/.docker.
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Deploy
+        env:
+          DEPLOY_SHA: ${{ inputs.sha || github.sha }}
+        run: scripts/deploy.sh dev "$DEPLOY_SHA"
+      - name: Summary
+        env:
+          DEPLOY_SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          {
+            echo "### Deployed to dev"
+            echo "- environment: dev"
+            echo "- sha: \`$DEPLOY_SHA\`"
+            echo "- \`$IMAGE_APP:$DEPLOY_SHA\`"
+            echo "- \`$IMAGE_FRONTEND:$DEPLOY_SHA\`"
+            echo '```'
+            kubectl --kubeconfig "${KIND_KUBECONFIG:-$HOME/.kube/runwatch-kind.config}" --context kind-runwatch \
+              -n runwatch-dev rollout history deployment/worker > "$RUNNER_TEMP/history.txt"
+            head -n 2 "$RUNNER_TEMP/history.txt"
+            tail -n 3 "$RUNNER_TEMP/history.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-prod:
+    name: deploy-prod
+    needs: [build, deploy-dev]
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.ref == 'refs/heads/main' && ((github.event_name == 'push' && needs.deploy-dev.result == 'success') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')) }}
+    runs-on: [self-hosted, runwatch-vm]
+    timeout-minutes: 30
+    environment: prod
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the SHA to be on main
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          if [ -n "$INPUT_SHA" ] && ! git merge-base --is-ancestor "$INPUT_SHA" origin/main; then
+            echo "$INPUT_SHA is not a commit on main"
+            exit 1
+          fi
+      - name: Log in to ghcr.io
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Keep the credentials in the job's temp directory, not in ~/.docker.
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Deploy
+        env:
+          DEPLOY_SHA: ${{ inputs.sha || github.sha }}
+        run: scripts/deploy.sh prod "$DEPLOY_SHA"
+      - name: Summary
+        env:
+          DEPLOY_SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          {
+            echo "### Deployed to prod"
+            echo "- environment: prod"
+            echo "- sha: \`$DEPLOY_SHA\`"
+            echo "- \`$IMAGE_APP:$DEPLOY_SHA\`"
+            echo "- \`$IMAGE_FRONTEND:$DEPLOY_SHA\`"
+            echo '```'
+            kubectl --kubeconfig "${KIND_KUBECONFIG:-$HOME/.kube/runwatch-kind.config}" --context kind-runwatch \
+              -n runwatch-prod rollout history deployment/worker > "$RUNNER_TEMP/history.txt"
+            head -n 2 "$RUNNER_TEMP/history.txt"
+            tail -n 3 "$RUNNER_TEMP/history.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

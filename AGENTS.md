@@ -52,6 +52,9 @@ The skeleton issue creates these; keep this list in sync with the
   `runwatch-dev` on the kind cluster; `DRY_RUN=1` prints instead of running
 - `make heal` - clear the drill state in `runwatch-dev` on the kind cluster;
   `DRY_RUN=1` prints instead of running
+- `make deploy ENV=dev|prod [SHA=<40-hex>]` - deploy the SHA's images (default
+  `HEAD`) to the kind cluster with `scripts/deploy.sh`; `DRY_RUN=1` prints the
+  plan, `SKIP_PULL=1` uses locally built images (see `docs/runbooks/deploy.md`)
 - `uv run pytest tests/unit/test_package.py` - one test file
 - `cd frontend && npx vitest run src/App.test.tsx` - one frontend test file
 - `cd frontend && npm run dev` - dev server, proxies `/api/v1` to
@@ -84,4 +87,4 @@ names, so point it at your own database only.
   parallel agents, PRs and merging. Read it before starting any issue
 - `_docs/team/` - the PM, software engineer and QA roles
 - `_docs/task-template.md` - the format of a groomed issue
-- `docs/runbooks/` - operational runbooks (rollback)
+- `docs/runbooks/` - operational runbooks (rollback, deploy, self-hosted runner)
