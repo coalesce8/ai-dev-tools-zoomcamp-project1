@@ -1,0 +1,14 @@
+{
+  "status": "firing",
+  "labels": {
+    "alertname": "WorkerDown",
+    "env": "dev",
+    "severity": "critical"
+  },
+  "annotations": {
+    "summary": "No worker is running",
+    "description": "Fixture alert for WorkerDown"
+  },
+  "startsAt": "2026-03-01T14:00:00Z",
+  "fingerprint": "wd01"
+}

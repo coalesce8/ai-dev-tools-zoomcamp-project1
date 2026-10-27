@@ -73,7 +73,7 @@ async def _handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
     return error_response(exc.status_code, exc.code, exc.message)
 
 
-async def _handle_http_exception(
+async def handle_http_exception(
     request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
     code = _HTTP_CODES.get(exc.status_code, "http_error")
@@ -94,5 +94,5 @@ async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
 def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(ApiError, _handle_api_error)
-    app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
+    app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(Exception, _handle_unexpected)

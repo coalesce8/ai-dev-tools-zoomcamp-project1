@@ -12,13 +12,19 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import JSONResponse, Response
 from opentelemetry.sdk._logs import LoggerProvider
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from runwatch.agent.incidents import FINGERPRINT_PATTERN, IncidentStore
+from runwatch.agent.incidents import (
+    FINGERPRINT_PATTERN,
+    IncidentStore,
+    valid_incident_id,
+)
+from runwatch.agent.reports import redact, render_report
 from runwatch.agent.runs import (
     Clock,
     NoModelResponder,
@@ -28,6 +34,7 @@ from runwatch.agent.runs import (
     utc_now,
 )
 from runwatch.agent.settings import AgentSettings, load_agent_settings
+from runwatch.api.errors import error_response, handle_http_exception
 from runwatch.logs import configure_logging
 from runwatch.telemetry import build_logger_provider
 
@@ -83,6 +90,7 @@ def create_app(
         responder,
         settings.agent_cooldown_s,
         clock,
+        settings.secret_values,
     )
     token = settings.agent_webhook_token.get_secret_value()
 
@@ -106,12 +114,38 @@ def create_app(
                 logs.force_flush()
 
     app = FastAPI(title="Runwatch agent", lifespan=lifespan)
+    # Unknown paths and wrong methods answer in the error envelope; request
+    # validation keeps FastAPI's 422.
+    app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.state.settings = settings
     app.state.runs = controller
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/incidents")
+    async def list_incidents(
+        limit: int = Query(default=50, ge=1, le=200),
+    ) -> JSONResponse:
+        statuses = await run_in_threadpool(controller.store.list_statuses)
+        items = [
+            {
+                **{k: status[k] for k in _LIST_KEYS},
+                "report_url": f"/incidents/{status['incident_id']}",
+            }
+            for status in statuses[:limit]
+        ]
+        return JSONResponse({"incidents": items})
+
+    @app.get("/incidents/{incident_id}")
+    async def get_incident(incident_id: str) -> Response:
+        report = await run_in_threadpool(
+            _read_report, controller, incident_id, settings.secret_values
+        )
+        if report is None:
+            return error_response(404, "not_found", "Incident not found")
+        return Response(report, media_type="text/markdown; charset=utf-8")
 
     @app.post("/webhook/alertmanager")
     async def webhook(request: Request) -> JSONResponse:
@@ -129,6 +163,36 @@ def create_app(
         return JSONResponse(results, status_code=202)
 
     return app
+
+
+_LIST_KEYS = (
+    "incident_id",
+    "alertname",
+    "env",
+    "state",
+    "outcome",
+    "started_at",
+    "ended_at",
+    "webhook_count",
+)
+
+
+def _read_report(
+    controller: RunController, incident_id: str, secrets: list[str]
+) -> str | None:
+    if not valid_incident_id(incident_id):
+        return None
+    report = controller.store.read_response(incident_id)
+    if report:
+        return report
+    if report is None:
+        return None
+    # Running: response.md is empty, so render the partial report now.
+    try:
+        text = render_report(controller.store.path(incident_id), controller.clock())
+    except (OSError, ValueError):
+        return None
+    return redact(text, secrets)
 
 
 def _handle_all(controller: RunController, alerts: list[dict]) -> list[dict]:

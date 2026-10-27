@@ -1,0 +1,11 @@
+{
+  "incident_id": "20260301T120000Z-bad1",
+  "fingerprint": "bad1",
+  "alertname": "HighInfraFailureRate",
+  "env": "dev",
+  "state": "finished",
+  "outcome": "resolved",
+  "started_at": "2026-03-01T12:00:00Z",
+  "ended_at": "2026-03-01T12:03:40Z",
+  "webhook_count": 5
+}

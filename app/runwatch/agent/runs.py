@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -21,6 +21,7 @@ from runwatch.agent.incidents import (
     format_time,
     parse_time,
 )
+from runwatch.agent.reports import write_report
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,9 @@ class RunController:
         responder: Responder,
         cooldown_s: float,
         clock: Clock = utc_now,
+        report_secrets: Sequence[str] = (),
     ) -> None:
+        self.report_secrets = tuple(report_secrets)
         self.store = store
         self.responder = responder
         self.cooldown_s = cooldown_s
@@ -97,6 +100,7 @@ class RunController:
                     status["state"] = FINISHED
                     status["outcome"] = OUTCOME_ESCALATED
                     status["ended_at"] = format_time(self.clock())
+                    status["interrupted"] = True
                     try:
                         self.store.append_context(
                             incident_id,
@@ -107,6 +111,7 @@ class RunController:
                     except OSError:
                         logger.warning("could not close an interrupted incident")
                         continue
+                    self._write_report(incident_id)
                     logger.warning(
                         "closed interrupted incident",
                         extra={
@@ -171,6 +176,8 @@ class RunController:
         )
         status["webhook_count"] += 1
         self.store.write_status(status["incident_id"], status)
+        if status["state"] == FINISHED:
+            self._write_report(status["incident_id"])
         logger.info(
             "webhook handled",
             extra={
@@ -180,6 +187,9 @@ class RunController:
                 "action": action,
             },
         )
+
+    def _write_report(self, incident_id: str) -> None:
+        write_report(self.store, incident_id, self.clock(), self.report_secrets)
 
     def _submit(self, incident: Incident) -> None:
         future = self._executor.submit(self._run, incident)
@@ -210,6 +220,7 @@ class RunController:
             status["outcome"] = outcome
             status["ended_at"] = format_time(self.clock())
             self.store.write_status(incident.incident_id, status)
+            self._write_report(incident.incident_id)
         logger.info(
             "run finished",
             extra={
