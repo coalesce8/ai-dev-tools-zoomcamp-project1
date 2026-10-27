@@ -19,8 +19,8 @@ configMapGenerator:
   - name: prometheus-rules
     files:
       - rules/runwatch.yaml
-      - rules/runwatch-api-down-dev.yaml
-      - rules/runwatch-api-down-prod.yaml
+      - k8s/rules/runwatch-api-down-dev.yaml
+      - k8s/rules/runwatch-api-down-prod.yaml
   - name: alertmanager-config
     files:
       - alertmanager.yaml=k8s/alertmanager.yaml

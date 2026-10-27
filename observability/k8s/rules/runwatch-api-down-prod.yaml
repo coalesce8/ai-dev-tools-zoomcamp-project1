@@ -5,11 +5,11 @@ groups:
     interval: 15s
     rules:
       - alert: RunwatchApiDown
-        expr: absent_over_time(runwatch_queue_depth{env="dev"}[2m])
+        expr: absent_over_time(runwatch_queue_depth{env="prod"}[2m])
         for: 1m
         labels:
           severity: critical
           service: runwatch
         annotations:
           summary: The app is down, so users cannot submit or watch jobs.
-          description: No runwatch_queue_depth samples for env local in the last 2 minutes (value {{ $value }}).
+          description: No runwatch_queue_depth samples for env {{ $labels.env }} in the last 2 minutes (value {{ $value }}).
