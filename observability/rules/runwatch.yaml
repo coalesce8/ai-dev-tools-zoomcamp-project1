@@ -1,0 +1,33 @@
+# User-impact alerts (spec "Alerts"). Environment-independent: every rule
+# aggregates by env, which is the label Alertmanager routes on.
+groups:
+  - name: runwatch
+    interval: 15s
+    rules:
+      - alert: QueueWaitHigh
+        expr: max by (env) (runwatch_oldest_queued_age_seconds) > 120
+        for: 1m
+        labels:
+          severity: critical
+          service: runwatch
+        annotations:
+          summary: Jobs are not starting, so users wait for their jobs to begin.
+          description: The oldest queued job has waited {{ $value }} seconds, above the 120 second limit.
+      - alert: JobsStalled
+        expr: max by (env) (runwatch_jobs_stalled) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: runwatch
+        annotations:
+          summary: Jobs have silently died, so users lose their running jobs.
+          description: '{{ $value }} jobs are in the STALLED state.'
+      - alert: JobFailureRateHigh
+        expr: sum by (env) (increase(runwatch_attempts_finished_total{outcome="failed",cause="infra"}[5m])) / sum by (env) (increase(runwatch_attempts_finished_total[5m])) > 0.5 and sum by (env) (increase(runwatch_attempts_finished_total[5m])) >= 5
+        for: 1m
+        labels:
+          severity: critical
+          service: runwatch
+        annotations:
+          summary: Jobs have started failing, so users see their jobs end in failure.
+          description: 'The share of attempts in the last 5 minutes that failed for infrastructure reasons is {{ $value }}, above 0.5 (at least 5 attempts).'
