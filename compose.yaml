@@ -148,6 +148,40 @@ services:
       timeout: 3s
       retries: 12
 
+  # Responder agent: the same image as the api, a different command. No
+  # Kubernetes access under Compose, so only the non-k8s tools are on. Nothing
+  # depends on it, and it publishes no host port (Alertmanager reaches it over
+  # the Compose network).
+  agent:
+    image: runwatch-app
+    build: .
+    command: ["uvicorn", "--factory", "runwatch.agent.app:create_app", "--host", "0.0.0.0", "--port", "8090"]
+    restart: unless-stopped
+    mem_limit: 192m
+    environment:
+      AGENT_WEBHOOK_TOKEN: ${AGENT_WEBHOOK_TOKEN:-local-dev-token}
+      AGENT_INCIDENTS_DIR: /data/incidents
+      AGENT_COOLDOWN_S: ${AGENT_COOLDOWN_S:-600}
+      AGENT_MODEL: ${AGENT_MODEL:-claude-opus-5-5}
+      # Read from the shell or .env; empty means runs end skipped_no_model.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RUNWATCH_API_URL: http://api:8000
+      AGENT_LOKI_URL: http://loki:3100
+      AGENT_ENV: ${DEPLOYMENT_ENVIRONMENT:-local}
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    volumes:
+      - runwatch-incidents:/data/incidents
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8090/healthz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
   loki:
     image: grafana/loki:3.7.8
     command: ["-config.file=/etc/loki/config.yaml"]
@@ -231,3 +265,5 @@ volumes:
     name: runwatch-tempo
   runwatch-grafana:
     name: runwatch-grafana
+  runwatch-incidents:
+    name: runwatch-incidents

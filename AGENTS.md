@@ -21,6 +21,9 @@ The skeleton issue creates these; keep this list in sync with the
 - `docker compose up --build` - run the full system, UI at
   http://localhost:8080, Grafana at http://localhost:3001, Prometheus at
   http://localhost:9091
+- `ANTHROPIC_API_KEY=… docker compose up --build` - the same with the
+  responder agent using a model key (without one it records alerts as
+  `skipped_no_model`)
 - `docker compose stop` - stop it (never `down -v`)
 - `cd frontend && npm ci` - install frontend dependencies
 - `DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/runwatch_wt<n> make test` -
