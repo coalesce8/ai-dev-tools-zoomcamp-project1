@@ -18,6 +18,9 @@ The skeleton issue creates these; keep this list in sync with the
 `Makefile`.
 
 - `uv sync` - install dependencies
+- `docker compose up --build` - run the full system, UI at
+  http://localhost:8080
+- `docker compose stop` - stop it (never `down -v`)
 - `cd frontend && npm ci` - install frontend dependencies
 - `DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/runwatch_wt<n> make test` -
   run all tests: unit, then frontend, then integration. It needs

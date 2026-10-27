@@ -19,6 +19,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from opentelemetry.context import Context
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -28,6 +29,8 @@ from runwatch.lifecycle import (
     FailureCause,
     JobState,
 )
+from runwatch.metrics import Metrics
+from runwatch.telemetry import job_attributes, start_span
 
 logger = logging.getLogger("runwatch.sweeper")
 
@@ -85,7 +88,10 @@ class LeaseSweeper:
         self,
         session_factory: Callable[[], Session],
         interval_s: float = SWEEP_INTERVAL_S,
+        *,
+        metrics: Metrics | None = None,
     ) -> None:
+        self._metrics = metrics
         self._session_factory = session_factory
         self._interval_s = interval_s
         self._stop = threading.Event()
@@ -120,9 +126,18 @@ class LeaseSweeper:
         try:
             swept = sweep_expired_leases(session)
             session.commit()
-            return swept
         finally:
             session.close()
+        if self._metrics is not None:
+            self._metrics.swept(len(swept))
+        for lease in swept:
+            with start_span(
+                "lease.expire",
+                context=Context(),
+                attributes=job_attributes(lease.job_id, lease.attempt_number),
+            ):
+                pass
+        return swept
 
     def _loop(self) -> None:
         while True:

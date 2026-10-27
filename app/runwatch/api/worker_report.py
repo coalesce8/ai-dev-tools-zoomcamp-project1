@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import (
     AwareDatetime,
     BaseModel,
@@ -39,6 +39,7 @@ from runwatch.lifecycle import (
     succeed,
 )
 from runwatch.models import Attempt, Job, LogLine
+from runwatch.telemetry import annotate_current_span
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ def post_heartbeat(
     session: Annotated[Session, Depends(get_session)],
 ) -> HeartbeatOut:
     job, attempt, now = _lock(session, attempt_id)
+    annotate_current_span(job.id, attempt.number)
     try:
         new_attempt = heartbeat(_job_snapshot(job), _attempt_snapshot(attempt), now)
     except TransitionConflict:
@@ -236,9 +238,11 @@ def post_heartbeat(
 def post_result(
     attempt_id: uuid.UUID,
     body: ResultIn,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
 ) -> ResultOut:
     job, attempt, now = _lock(session, attempt_id)
+    annotate_current_span(job.id, attempt.number)
     job_snap = _job_snapshot(job)
     attempt_snap = _attempt_snapshot(attempt)
     try:
@@ -254,7 +258,13 @@ def post_result(
     _apply_attempt(attempt, new_attempt)
     if new_job.state.value == "QUEUED":
         job.queued_at = now
+    # Both are database times (`started_at` from the claim, `now` from this
+    # transaction), so replica clock skew cannot distort the duration.
+    run_seconds = (new_attempt.finished_at - attempt.started_at).total_seconds()
     session.commit()
+    request.app.state.metrics.result_reported(
+        new_attempt.state, new_attempt.failure_cause, new_job.state, run_seconds
+    )
     logger.info(
         "result job_id=%s attempt_id=%s attempt_state=%s job_state=%s",
         job.id,
