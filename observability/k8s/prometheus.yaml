@@ -1,0 +1,71 @@
+# Memory: 256Mi limit like Compose. GOMEMLIMIT (about 80%) makes the Go GC
+# work harder before the kernel OOM-kills the pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  labels: {app: prometheus}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: prometheus}
+  template:
+    metadata:
+      labels: {app: prometheus}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.15.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yaml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=2d
+            - --storage.tsdb.retention.size=512MB
+            # Metrics are pushed by the collectors over OTLP, not scraped.
+            - --web.enable-otlp-receiver
+            # Store a zero sample at each counter's start time, so increase()
+            # also counts the very first event of a new series.
+            - --enable-feature=created-timestamp-zero-ingestion
+          env:
+            - {name: GOMEMLIMIT, value: 200MiB}
+          ports:
+            - {name: http, containerPort: 9090}
+          readinessProbe:
+            httpGet: {path: /-/ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 12
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          resources:
+            requests: {cpu: 100m, memory: 160Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/prometheus/prometheus.yaml, subPath: prometheus.yaml, readOnly: true}
+            - {name: rules, mountPath: /etc/prometheus/rules, readOnly: true}
+            - {name: data, mountPath: /prometheus}
+      volumes:
+        - name: config
+          configMap: {name: prometheus-config}
+        - name: rules
+          configMap: {name: prometheus-rules}
+        # Telemetry is lost when the pod restarts: accepted for a disposable demo cluster.
+        - name: data
+          emptyDir: {sizeLimit: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  labels: {app: prometheus}
+spec:
+  type: ClusterIP
+  selector: {app: prometheus}
+  ports:
+    - {name: http, port: 9090, targetPort: http}

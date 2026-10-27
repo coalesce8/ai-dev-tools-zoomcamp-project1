@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  labels: {app: loki}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: loki}
+  template:
+    metadata:
+      labels: {app: loki}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: loki
+          image: grafana/loki:3.7.8
+          args: ["-config.file=/etc/loki/config.yaml"]
+          env:
+            - {name: GOMEMLIMIT, value: 200MiB}
+          ports:
+            - {name: http, containerPort: 3100}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 24
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/loki/config.yaml, subPath: loki.yaml, readOnly: true}
+            - {name: data, mountPath: /loki}
+      volumes:
+        - name: config
+          configMap: {name: loki-config}
+        - name: data
+          emptyDir: {sizeLimit: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  labels: {app: loki}
+spec:
+  type: ClusterIP
+  selector: {app: loki}
+  ports:
+    - {name: http, port: 3100, targetPort: http}

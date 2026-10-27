@@ -1,0 +1,41 @@
+# kubectl apply -k observability. The root is this directory so the config
+# files that Compose also uses are reused in place (kustomize does not read
+# files outside its root, and `kubectl apply -k` cannot lift that).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: runwatch-observability
+resources:
+  - k8s/namespace.yaml
+  - k8s/prometheus.yaml
+  - k8s/alertmanager-deployment.yaml
+  - k8s/loki.yaml
+  - k8s/tempo.yaml
+  - k8s/grafana.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yaml
+  # runwatch-api-down-local.yaml is deliberately left out: it would fire forever on kind.
+  - name: prometheus-rules
+    files:
+      - rules/runwatch.yaml
+      - rules/runwatch-api-down-dev.yaml
+      - rules/runwatch-api-down-prod.yaml
+  - name: alertmanager-config
+    files:
+      - alertmanager.yaml=k8s/alertmanager.yaml
+  - name: loki-config
+    files:
+      - loki.yaml
+  - name: tempo-config
+    files:
+      - tempo.yaml
+  - name: grafana-datasources
+    files:
+      - grafana/provisioning/datasources/datasources.yaml
+  - name: grafana-dashboard-providers
+    files:
+      - grafana/provisioning/dashboards/dashboards.yaml
+  - name: grafana-dashboards
+    files:
+      - grafana/dashboards/runwatch.json
