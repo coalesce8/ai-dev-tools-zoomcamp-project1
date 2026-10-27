@@ -118,9 +118,32 @@ services:
       - "${OBSERVABILITY_BIND:-127.0.0.1}:${PROMETHEUS_PORT:-9091}:9090"
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./observability/rules:/etc/prometheus/rules:ro
+      - ./observability/tests:/etc/prometheus/tests:ro
       - runwatch-prometheus:/prometheus
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    # Alertmanager cannot expand variables in its config, so the entrypoint
+    # writes the token to a file that the config reads (credentials_file).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - printf '%s' "$$AGENT_WEBHOOK_TOKEN" > /tmp/agent_token && exec /bin/alertmanager --config.file=/etc/alertmanager.yaml --storage.path=/alertmanager
+    restart: unless-stopped
+    mem_limit: 64m
+    environment:
+      AGENT_WEBHOOK_TOKEN: ${AGENT_WEBHOOK_TOKEN:-local-dev-token}
+    volumes:
+      - ./observability/alertmanager.yaml:/etc/alertmanager.yaml:ro
+      - runwatch-alertmanager:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -200,6 +223,8 @@ volumes:
     name: runwatch-pgdata
   runwatch-prometheus:
     name: runwatch-prometheus
+  runwatch-alertmanager:
+    name: runwatch-alertmanager
   runwatch-loki:
     name: runwatch-loki
   runwatch-tempo:
