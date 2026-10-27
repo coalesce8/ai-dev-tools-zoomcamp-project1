@@ -121,6 +121,17 @@ def claim_next(session: Session, worker_id: str) -> ClaimResult | None:
         attributes=job_attributes(job.id, attempt.number),
     ):
         session.commit()
+        logger.info(
+            "claimed job_id=%s attempt_id=%s attempt_number=%d",
+            result.job_id,
+            result.attempt_id,
+            result.attempt_number,
+            extra={
+                "job_id": str(result.job_id),
+                "attempt_id": str(result.attempt_id),
+                "attempt_number": result.attempt_number,
+            },
+        )
     return result
 
 
@@ -138,15 +149,4 @@ def claim(
     if result is None:
         return Response(status_code=204)
     request.app.state.metrics.claimed(result.queue_wait_seconds)
-    logger.info(
-        "claimed job_id=%s attempt_id=%s attempt_number=%d",
-        result.job_id,
-        result.attempt_id,
-        result.attempt_number,
-        extra={
-            "job_id": str(result.job_id),
-            "attempt_id": str(result.attempt_id),
-            "attempt_number": result.attempt_number,
-        },
-    )
     return result
