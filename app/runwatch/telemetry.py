@@ -21,7 +21,11 @@ from typing import Any
 
 from opentelemetry import propagate, trace
 from opentelemetry.context import Context
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import View
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -39,6 +43,9 @@ ATTR_JOB_ID = "job.id"
 ATTR_ATTEMPT_NUMBER = "attempt.number"
 
 _TELEMETRY_SCOPE = "runwatch"
+
+# The spec fixes the metric export interval.
+METRIC_EXPORT_INTERVAL_MS = 10_000
 
 _provider: TracerProvider | None = None
 
@@ -67,6 +74,43 @@ def build_tracer_provider(
         url = endpoint.rstrip("/") + "/v1/traces"
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=url)))
     return provider
+
+
+# HTTP server metrics keep method, route template and status code only. The
+# instrumentation's defaults also carry the Host header, which a client picks.
+_HTTP_METRIC_ATTRIBUTES = {
+    "http.method",
+    "http.target",
+    "http.status_code",
+    "http.request.method",
+    "http.route",
+    "http.response.status_code",
+}
+_VIEWS = [View(instrument_name="http.server.*", attribute_keys=_HTTP_METRIC_ATTRIBUTES)]
+
+
+def build_meter_provider(
+    service_name: str, reader: MetricReader | None = None
+) -> MeterProvider:
+    """Build a meter provider for one process.
+
+    An explicit reader is used as it is (tests). Otherwise a periodic reader
+    around the OTLP/HTTP exporter is added when the endpoint variable is set;
+    with neither there is no reader, nothing is exported and gauge callbacks
+    never run.
+    """
+    resource = Resource({SERVICE_NAME: service_name})
+    if reader is not None:
+        return MeterProvider(resource=resource, metric_readers=[reader], views=_VIEWS)
+    endpoint = (_TelemetrySettings().otel_exporter_otlp_endpoint or "").strip()
+    if not endpoint:
+        return MeterProvider(resource=resource, views=_VIEWS)
+    url = endpoint.rstrip("/") + "/v1/metrics"
+    periodic = PeriodicExportingMetricReader(
+        OTLPMetricExporter(endpoint=url),
+        export_interval_millis=METRIC_EXPORT_INTERVAL_MS,
+    )
+    return MeterProvider(resource=resource, metric_readers=[periodic], views=_VIEWS)
 
 
 def set_tracer_provider(provider: TracerProvider | None) -> None:

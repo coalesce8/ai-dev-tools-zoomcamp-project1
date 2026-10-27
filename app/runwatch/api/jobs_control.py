@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -207,9 +207,10 @@ def post_requeue(
 
 @public_router.post("/jobs/{job_id}/cancel")
 def post_cancel(
-    job_id: str, session: Annotated[Session, Depends(get_session)]
+    job_id: str, request: Request, session: Annotated[Session, Depends(get_session)]
 ) -> JobOut:
     job = cancel_job(session, _parse_id(job_id))
+    request.app.state.metrics.cancelled()
     logger.info("cancelled job_id=%s", job.id)
     return JobOut.model_validate(job)
 

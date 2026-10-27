@@ -8,10 +8,10 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from opentelemetry.context import Context
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, StrictStr
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -37,6 +37,14 @@ class ClaimResult(BaseModel):
     spec: dict[str, Any]
     lease_expires_at: datetime
     trace_context: dict[str, Any] | None
+
+    # Not part of the response: how long the job waited (database times), for
+    # the queue_wait_seconds metric.
+    _queue_wait_seconds: float = PrivateAttr(default=0.0)
+
+    @property
+    def queue_wait_seconds(self) -> float:
+        return self._queue_wait_seconds
 
 
 def claim_select():
@@ -100,6 +108,9 @@ def claim_next(session: Session, worker_id: str) -> ClaimResult | None:
         lease_expires_at=attempt.lease_expires_at,
         trace_context=job.trace_context,
     )
+    result._queue_wait_seconds = max(
+        0.0, (new_attempt.started_at - job.queued_at).total_seconds()
+    )
     # A child of the submit span when the job has a usable stored context,
     # otherwise a root span.
     with start_span(
@@ -116,8 +127,13 @@ def claim_next(session: Session, worker_id: str) -> ClaimResult | None:
     response_model=ClaimResult,
     responses={204: {"description": "Nothing is queued"}},
 )
-def claim(body: ClaimRequest, session: Annotated[Session, Depends(get_session)]):
+def claim(
+    body: ClaimRequest,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+):
     result = claim_next(session, body.worker_id)
     if result is None:
         return Response(status_code=204)
+    request.app.state.metrics.claimed(result.queue_wait_seconds)
     return result

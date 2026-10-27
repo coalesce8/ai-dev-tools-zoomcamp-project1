@@ -29,6 +29,7 @@ from runwatch.lifecycle import (
     FailureCause,
     JobState,
 )
+from runwatch.metrics import Metrics
 from runwatch.telemetry import job_attributes, start_span
 
 logger = logging.getLogger("runwatch.sweeper")
@@ -87,7 +88,10 @@ class LeaseSweeper:
         self,
         session_factory: Callable[[], Session],
         interval_s: float = SWEEP_INTERVAL_S,
+        *,
+        metrics: Metrics | None = None,
     ) -> None:
+        self._metrics = metrics
         self._session_factory = session_factory
         self._interval_s = interval_s
         self._stop = threading.Event()
@@ -124,6 +128,8 @@ class LeaseSweeper:
             session.commit()
         finally:
             session.close()
+        if self._metrics is not None:
+            self._metrics.swept(len(swept))
         for lease in swept:
             with start_span(
                 "lease.expire",
