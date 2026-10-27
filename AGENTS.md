@@ -19,8 +19,13 @@ The skeleton issue creates these; keep this list in sync with the
 
 - `uv sync` - install dependencies
 - `cd frontend && npm ci` - install frontend dependencies
-- `make test` - run the tests. It currently runs the unit and frontend
-  tests; integration tests are added by #18
+- `DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/runwatch_wt<n> make test` -
+  run all tests: unit, then frontend, then integration. It needs
+  `DATABASE_URL` and refuses to run without it
+- `make test-unit` - unit tests only; needs no database
+- `make test-integration` - integration tests; needs `DATABASE_URL`
+- `DATABASE_URL=… uv run pytest tests/integration/test_e2e_jobs.py` - one
+  integration file
 - `make test-frontend` - frontend typecheck and tests
 - `make lint` - lint, same as the ruff command below
 - `uv run pytest tests/unit/test_package.py` - one test file
@@ -30,8 +35,10 @@ The skeleton issue creates these; keep this list in sync with the
 - `uv run ruff check . && uv run ruff format --check .` - lint
 - `uv run alembic upgrade head` - apply migrations (reads `DATABASE_URL`)
 
-DB-backed tests in `make test` need `DATABASE_URL` pointing at a Postgres
-database; they are skipped without it.
+DB-backed tests skip when `pytest` runs without `DATABASE_URL`, and
+`make test` refuses to run without it. The integration tests empty the
+`jobs`, `attempts` and `log_lines` tables in the database `DATABASE_URL`
+names, so point it at your own database only.
 
 ## Rules
 
