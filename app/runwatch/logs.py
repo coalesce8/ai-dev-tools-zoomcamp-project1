@@ -39,6 +39,16 @@ EXTRA_KEYS = (
     "alertname",
     "action",
     "outcome",
+    # The responder loop's fixed-vocabulary fields (never tool data).
+    "reason",
+    "tool",
+    "ok",
+    "refused",
+    "tool_calls",
+    "writes",
+    "tokens",
+    "kind",
+    "status",
     "exc_type",
 )
 
@@ -228,7 +238,10 @@ def configure_logging(
     # INFO on sqlalchemy.engine logs SQL parameters, which include job names.
     for name in ("sqlalchemy.engine", "sqlalchemy.pool"):
         logging.getLogger(name).setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    # httpx logs request URLs at INFO (Loki query text); the Anthropic SDK
+    # uses httpx2 and logs request options at DEBUG.
+    for name in ("httpx", "httpx2", "anthropic"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         target = logging.getLogger(name)
         target.handlers = []

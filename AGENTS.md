@@ -42,6 +42,13 @@ The skeleton issue creates these; keep this list in sync with the
   render, validate (kubeconform in container `runwatch-kubeconform`) and
   create the Secrets for the k8s manifests in `k8s/`. All offline except
   `k8s-secrets` without `DRY_RUN=1`
+- `make rollback ENV=dev|prod` - undo the last rollout of the app Deployments
+  in the kind cluster (`DEPLOY=`, `REVISION=`, `CONFIRM=yes` for prod);
+  `DRY_RUN=1` prints instead of running
+- `make break-worker`, `make bad-release` - set up the two demo incidents in
+  `runwatch-dev` on the kind cluster; `DRY_RUN=1` prints instead of running
+- `make heal` - clear the drill state in `runwatch-dev` on the kind cluster;
+  `DRY_RUN=1` prints instead of running
 - `uv run pytest tests/unit/test_package.py` - one test file
 - `cd frontend && npx vitest run src/App.test.tsx` - one frontend test file
 - `cd frontend && npm run dev` - dev server, proxies `/api/v1` to

@@ -19,7 +19,13 @@ class AgentSettings(BaseSettings):
     agent_incidents_dir: str = "incidents"
     agent_cooldown_s: float = Field(default=600, ge=0)
     agent_model: str = DEFAULT_MODEL
+    agent_model_timeout_s: float = Field(default=60, gt=0)
+    agent_api_retry_delay_s: float = Field(default=2, gt=0)
+    agent_verify_interval_s: float = Field(default=30, gt=0)
+    agent_verify_timeout_s: float = Field(default=600, gt=0)
     anthropic_api_key: SecretStr | None = None
+    # Only used to redact incident reports; nothing posts to GitHub yet.
+    github_token: SecretStr | None = None
 
     @field_validator("agent_webhook_token")
     @classmethod
@@ -27,6 +33,12 @@ class AgentSettings(BaseSettings):
         if not value.get_secret_value():
             raise ValueError("must not be empty")
         return value
+
+    @property
+    def secret_values(self) -> list[str]:
+        """Values the incident report must never contain."""
+        secrets = [self.agent_webhook_token, self.anthropic_api_key, self.github_token]
+        return [s.get_secret_value() for s in secrets if s is not None]
 
     @property
     def has_api_key(self) -> bool:

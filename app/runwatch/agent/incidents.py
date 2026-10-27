@@ -4,7 +4,7 @@ Layout under the incidents directory::
 
     <incident_id>/alert.json      the first alert, as received
                   context.md      header; later issues append evidence
-                  response.md     empty here; the report goes in later
+                  response.md     the Markdown report (empty while running)
                   status.json     state of the run (written atomically)
                   webhooks.jsonl  one line per webhook that touched the incident
 
@@ -78,6 +78,28 @@ def label(alert: dict[str, Any], name: str) -> str:
     return value if isinstance(value, str) and value else "unknown"
 
 
+def atomic_write(target: Path, text: str) -> None:
+    """Write `text` to `target` through a temp file in the same directory."""
+    fd, tmp = tempfile.mkstemp(
+        dir=target.parent, prefix=f".{target.name}-", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(text)
+        os.replace(tmp, target)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+INCIDENT_ID_PATTERN = r"^\d{8}T\d{6}Z-[A-Za-z0-9_-]{1,64}$"
+_INCIDENT_ID = re.compile(INCIDENT_ID_PATTERN)
+
+
+def valid_incident_id(incident_id: str) -> bool:
+    return _INCIDENT_ID.fullmatch(incident_id) is not None
+
+
 class IncidentStore:
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
@@ -130,16 +152,12 @@ class IncidentStore:
         return incident, status
 
     def write_status(self, incident_id: str, status: dict[str, Any]) -> None:
-        directory = self.path(incident_id)
-        fd, tmp = tempfile.mkstemp(dir=directory, prefix=".status-", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as handle:
-                json.dump(status, handle, indent=2)
-                handle.write("\n")
-            os.replace(tmp, directory / "status.json")
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        atomic_write(
+            self.path(incident_id) / "status.json", json.dumps(status, indent=2) + "\n"
+        )
+
+    def write_response(self, incident_id: str, text: str) -> None:
+        atomic_write(self.path(incident_id) / "response.md", text)
 
     def append_webhook(self, incident_id: str, entry: dict[str, Any]) -> None:
         with (self.path(incident_id) / "webhooks.jsonl").open("a") as handle:
@@ -176,3 +194,28 @@ class IncidentStore:
         if not self.root.is_dir():
             return []
         return sorted(p.name for p in self.root.iterdir() if p.is_dir())
+
+    def list_statuses(self) -> list[dict[str, Any]]:
+        """Valid statuses of every incident, newest `started_at` first."""
+        found = []
+        for incident_id in self.list_ids():
+            if not valid_incident_id(incident_id):
+                continue
+            try:
+                found.append(self.read_status(incident_id))
+            except ValueError:
+                continue
+        found.sort(
+            key=lambda s: (parse_time(s["started_at"]), s["incident_id"]), reverse=True
+        )
+        return found
+
+    def read_response(self, incident_id: str) -> str | None:
+        """Contents of response.md; None for an unknown or invalid id."""
+        if not valid_incident_id(incident_id):
+            return None
+        try:
+            self.read_status(incident_id)
+            return (self.path(incident_id) / "response.md").read_text()
+        except (OSError, ValueError):
+            return None
