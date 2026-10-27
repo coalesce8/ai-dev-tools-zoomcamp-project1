@@ -42,6 +42,9 @@ The skeleton issue creates these; keep this list in sync with the
   `API_PROXY_TARGET`
 - `uv run ruff check . && uv run ruff format --check .` - lint
 - `uv run alembic upgrade head` - apply migrations (reads `DATABASE_URL`)
+- CI (`.github/workflows/ci.yaml`) runs `make lint`, `make test-unit`,
+  `make test-integration` and `make test-frontend` on every PR, fails on
+  any skipped test; the check to wait for is `CI passed`
 
 DB-backed tests skip when `pytest` runs without `DATABASE_URL`, and
 `make test` refuses to run without it. The integration tests empty the

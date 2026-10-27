@@ -28,7 +28,19 @@ from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The only attributes copied from ``extra`` (and kept on the OTLP record).
-EXTRA_KEYS = ("job_id", "attempt_id", "attempt_number", "worker_id", "exc_type")
+EXTRA_KEYS = (
+    "job_id",
+    "attempt_id",
+    "attempt_number",
+    "worker_id",
+    # The responder agent's ids (alertname is an alert rule name, not job data).
+    "incident_id",
+    "fingerprint",
+    "alertname",
+    "action",
+    "outcome",
+    "exc_type",
+)
 
 _LEVELS = {
     "DEBUG": logging.DEBUG,
