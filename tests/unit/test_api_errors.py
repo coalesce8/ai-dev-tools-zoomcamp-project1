@@ -236,7 +236,3 @@ def test_get_session_binds_to_app_engine():
         assert session.get_bind() is app.state.engine
     finally:
         session.close()
-
-
-def test_ci_red_check():
-    assert False, "throwaway red check for #34"
