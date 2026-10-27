@@ -19,6 +19,10 @@ class AgentSettings(BaseSettings):
     agent_incidents_dir: str = "incidents"
     agent_cooldown_s: float = Field(default=600, ge=0)
     agent_model: str = DEFAULT_MODEL
+    agent_model_timeout_s: float = Field(default=60, gt=0)
+    agent_api_retry_delay_s: float = Field(default=2, gt=0)
+    agent_verify_interval_s: float = Field(default=30, gt=0)
+    agent_verify_timeout_s: float = Field(default=600, gt=0)
     anthropic_api_key: SecretStr | None = None
     # Only used to redact incident reports; nothing posts to GitHub yet.
     github_token: SecretStr | None = None
