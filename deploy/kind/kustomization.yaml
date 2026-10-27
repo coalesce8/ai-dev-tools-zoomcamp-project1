@@ -1,0 +1,56 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ingress-nginx.yaml
+  - namespaces.yaml
+patches:
+  - target:
+      kind: Deployment
+      name: ingress-nginx-controller
+      namespace: ingress-nginx
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+      spec:
+        minReadySeconds: null
+        template:
+          spec:
+            containers:
+              - name: controller
+                resources:
+                  requests:
+                    memory: 100Mi
+                  limits:
+                    memory: 200Mi
+  - target:
+      kind: ConfigMap
+      name: ingress-nginx-controller
+      namespace: ingress-nginx
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+      data:
+        allow-snippet-annotations: "false"
+  # Upstream Jobs delete themselves at once (ttl 0), so every apply recreated
+  # them. Keep them for a year so a re-apply sees them unchanged.
+  - target:
+      kind: Job
+      name: ingress-nginx-admission-.*
+    patch: |-
+      - op: add
+        path: /spec/ttlSecondsAfterFinished
+        value: 31536000
+  # Write the defaulted `scope` so a re-apply sees no difference.
+  - target:
+      kind: ValidatingWebhookConfiguration
+      name: ingress-nginx-admission
+    patch: |-
+      - op: add
+        path: /webhooks/0/rules/0/scope
+        value: '*'
