@@ -15,7 +15,6 @@ from sqlalchemy import func, select, text
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = {"duration_s": 1, "fail_probability": 0.0, "mode": "normal"}
-PIDS: list[int] = []
 
 
 def _gone(pid: int) -> bool:
@@ -113,7 +112,6 @@ def test_api_client_runs_without_sweeper(api_client):
 
 def test_api_server_is_healthy_and_ready(api_server):
     api = api_server()
-    PIDS.append(api.pid)
     assert api.url == f"http://127.0.0.1:{api.port}"
     assert httpx.get(f"{api.url}/healthz").status_code == 200
     assert httpx.get(f"{api.url}/readyz").status_code == 200
@@ -152,7 +150,6 @@ def test_worker_exits_with_code_zero_on_sigterm(api_server, worker, wait_until):
     w = worker(api)
     other = worker(api)
     assert w.worker_id != other.worker_id
-    PIDS.extend([api.pid, w.pid, other.pid])
     assert w.running()
     assert w.stop() == 0
     assert other.stop() == 0
@@ -176,12 +173,35 @@ def test_wait_until_times_out_with_a_message(wait_until):
     assert "0.3" in str(info.value)
 
 
-def test_no_pid_left_after_teardown_part_1(api_server, worker):
+def test_processes_start_and_record_pids(api_server, worker, tmp_path):
     api = api_server()
     w = worker(api)
-    PIDS[:] = [api.pid, w.pid]
+    assert api.running() and w.running()
+    target = os.environ.get("HARNESS_PIDS_FILE")
+    if target:
+        Path(target).write_text(f"{api.pid} {w.pid}")
 
 
-def test_no_pid_left_after_teardown_part_2(database_url):
-    assert len(PIDS) >= 2
-    assert all(_gone(pid) for pid in PIDS)
+def test_no_pid_left_after_teardown(db_engine, tmp_path):
+    pids_file = tmp_path / "pids.txt"
+    env = dict(os.environ, HARNESS_PIDS_FILE=str(pids_file))
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "tests/integration/test_harness.py::test_processes_start_and_record_pids",
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=50,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    pids = [int(p) for p in pids_file.read_text().split()]
+    assert len(pids) == 2
+    assert all(_gone(pid) for pid in pids)
