@@ -1,0 +1,15 @@
+# One RunwatchApiDown rule per environment; Compose has only `local`.
+# The env label of the firing alert comes from the selector.
+groups:
+  - name: runwatch-api-down-prod
+    interval: 15s
+    rules:
+      - alert: RunwatchApiDown
+        expr: absent_over_time(runwatch_queue_depth{env="prod"}[2m])
+        for: 1m
+        labels:
+          severity: critical
+          service: runwatch
+        annotations:
+          summary: The app is down, so users cannot submit or watch jobs.
+          description: No runwatch_queue_depth samples for env {{ $labels.env }} in the last 2 minutes (value {{ $value }}).

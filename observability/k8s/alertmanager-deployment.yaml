@@ -1,0 +1,72 @@
+# Needs Secret alertmanager-webhook (keys dev-token, prod-token), created
+# outside the repo (see README.md); the pod stays in CreateContainerConfigError
+# until it exists. Alertmanager cannot expand variables in its config, so the
+# command writes each token to a file that the config reads (credentials_file).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  labels: {app: alertmanager}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: alertmanager}
+  template:
+    metadata:
+      labels: {app: alertmanager}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.28.1
+          command:
+            - /bin/sh
+            - -c
+            - >-
+              printf '%s' "$AGENT_WEBHOOK_TOKEN_DEV" > /tmp/agent_token_dev &&
+              printf '%s' "$AGENT_WEBHOOK_TOKEN_PROD" > /tmp/agent_token_prod &&
+              exec /bin/alertmanager --config.file=/etc/alertmanager.yaml --storage.path=/alertmanager
+          env:
+            - name: AGENT_WEBHOOK_TOKEN_DEV
+              valueFrom:
+                secretKeyRef: {name: alertmanager-webhook, key: dev-token}
+            - name: AGENT_WEBHOOK_TOKEN_PROD
+              valueFrom:
+                secretKeyRef: {name: alertmanager-webhook, key: prod-token}
+            - {name: GOMEMLIMIT, value: 48MiB}
+          ports:
+            - {name: http, containerPort: 9093}
+          readinessProbe:
+            httpGet: {path: /-/ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 12
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/alertmanager.yaml, subPath: alertmanager.yaml, readOnly: true}
+            - {name: data, mountPath: /alertmanager}
+      volumes:
+        - name: config
+          configMap: {name: alertmanager-config}
+        - name: data
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  labels: {app: alertmanager}
+spec:
+  type: ClusterIP
+  selector: {app: alertmanager}
+  ports:
+    - {name: http, port: 9093, targetPort: http}

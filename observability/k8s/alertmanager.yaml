@@ -1,0 +1,38 @@
+# Kubernetes variant of ../alertmanager.yaml (same timings and token
+# mechanism): routes each alert by its env label to that environment's agent
+# in its own namespace. No route for env="local": Compose only.
+# Tokens are never in this file: the container command writes them to
+# /tmp/agent_token_dev and /tmp/agent_token_prod from the alertmanager-webhook Secret.
+route:
+  group_by: [alertname, env]
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 10m
+  # No integrations: an alert without a known env goes nowhere.
+  receiver: unrouted
+  routes:
+    - matchers:
+        - env="dev"
+      receiver: agent-dev
+    - matchers:
+        - env="prod"
+      receiver: agent-prod
+
+receivers:
+  - name: unrouted
+  - name: agent-dev
+    webhook_configs:
+      - url: http://agent.runwatch-dev.svc.cluster.local:8090/webhook/alertmanager
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /tmp/agent_token_dev
+  - name: agent-prod
+    webhook_configs:
+      - url: http://agent.runwatch-prod.svc.cluster.local:8090/webhook/alertmanager
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /tmp/agent_token_prod
