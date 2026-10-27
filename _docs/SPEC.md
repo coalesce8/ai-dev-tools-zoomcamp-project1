@@ -47,7 +47,7 @@ The app itself never auto-requeues stalled jobs or restarts workers. That is the
 | Frontend | React + Vite | Job list, job detail with live status and logs, submit form, requeue/cancel buttons. |
 | API | FastAPI, SQLAlchemy, Alembic | Public REST API for jobs; internal worker and agent endpoints; lease sweeper; DB-derived gauges; `/healthz`, `/readyz`. |
 | Worker | Python process (same codebase) | Claims queued jobs, runs the simulated workload, heartbeats, reports results. Scaled independently. |
-| Load generator | Python process (same codebase) | Submits one `normal` job (`duration_s: 10`, `fail_probability: 0`) every `LOADGEN_INTERVAL_S` (default 10 s). |
+| Load generator | Python process (same codebase) | Submits one `normal` job (`duration_s: 10`, `fail_probability: 0`) every `LOADGEN_INTERVAL_S` (default 20 s). |
 | Database | PostgreSQL 16 | Jobs, attempts, log lines. Single source of truth; the queue is a table (`FOR UPDATE SKIP LOCKED`). |
 | Observability | OTel Collector, Prometheus, Tempo, Loki, Grafana, Alertmanager | Collect, store, and view signals; evaluate alert rules. All services export over OTLP to the collector. |
 | Responder agent | Python + Claude (Anthropic API) with tool use | Receives Alertmanager webhooks, diagnoses, applies allow-listed fixes, records an incident report. |
