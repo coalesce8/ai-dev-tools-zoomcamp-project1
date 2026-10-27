@@ -44,7 +44,8 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/readyz', timeout=2)"]
       interval: 5s
       timeout: 3s
-      retries: 12
+      # 6 x ~7 s: unhealthy ~45 s after the database goes away (12 took ~80 s).
+      retries: 6
       start_period: 10s
 
   worker:
@@ -54,9 +55,10 @@ services:
     restart: unless-stopped
     mem_limit: 128m
     environment:
-      RUNWATCH_API_URL: http://api:8000
-      WORKER_ID: ${WORKER_ID:-}
-      WORKER_FAULT: ${WORKER_FAULT:-}
+      - RUNWATCH_API_URL=http://api:8000
+      # Bare name: passed through only when set (an empty WORKER_ID is rejected by the worker).
+      - WORKER_ID
+      - WORKER_FAULT
     depends_on:
       api:
         condition: service_healthy
