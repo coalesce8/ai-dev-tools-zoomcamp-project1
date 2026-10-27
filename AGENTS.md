@@ -31,6 +31,8 @@ The skeleton issue creates these; keep this list in sync with the
 - `DATABASE_URL=… uv run pytest tests/integration/test_e2e_jobs.py` - one
   integration file
 - `make test-frontend` - frontend typecheck and tests
+- `make test-alerts` - alert rules unit tests (`promtool`); needs the
+  Prometheus container running (`docker compose up -d prometheus`)
 - `make lint` - lint, same as the ruff command below
 - `make kind-up` - create or start the kind cluster `runwatch` (stop
   Compose first; see `docs/runbooks/kind-cluster.md`)

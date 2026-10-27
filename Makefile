@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-frontend test-integration need-database-url lint kind-up kind-down kind-load
+.PHONY: test test-unit test-frontend test-integration test-alerts need-database-url lint kind-up kind-down kind-load
 
 KIND_KUBECONFIG ?= $(HOME)/.kube/runwatch-kind.config
 KIND_MIN_AVAILABLE_MB ?= 1500
@@ -16,6 +16,12 @@ test-unit:
 test-integration:
 	@test -n "$$DATABASE_URL" || { $(MAKE) --no-print-directory need-database-url; exit 1; }
 	uv run pytest -rs tests/integration
+
+test-alerts:
+	@docker compose ps --status running --services 2>/dev/null | grep -qx prometheus || { echo "prometheus is not running: run 'docker compose up -d prometheus' first" >&2; exit 1; }
+	docker compose exec -T prometheus promtool check config /etc/prometheus/prometheus.yaml
+	docker compose exec -T prometheus sh -c 'promtool check rules /etc/prometheus/rules/*.yaml'
+	docker compose exec -T prometheus promtool test rules /etc/prometheus/tests/alerts_test.yaml
 
 need-database-url:
 	@echo "DATABASE_URL is not set. The integration tests need a PostgreSQL database and empty its tables." >&2

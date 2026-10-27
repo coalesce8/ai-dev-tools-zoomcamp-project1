@@ -1,0 +1,327 @@
+# promtool test rules, run by `make test-alerts` inside the prometheus container.
+# Series carry env="local"; the gauge rules get two API replicas (instance a, b)
+# to prove the max by (env) aggregation.
+evaluation_interval: 15s
+
+rule_files:
+  - ../rules/*.yaml
+
+tests:
+  - name: QueueWaitHigh fires on the slow replica (a)
+    interval: 15s
+    input_series:
+      - series: 'runwatch_oldest_queued_age_seconds{env="local", instance="a"}'
+        values: '0x8 0x40'
+      - series: 'runwatch_oldest_queued_age_seconds{env="local", instance="b"}'
+        values: '0x8 130x40'
+    alert_rule_test:
+      - eval_time: 2m45s
+        alertname: QueueWaitHigh
+        exp_alerts: []
+      - eval_time: 3m30s
+        alertname: QueueWaitHigh
+        exp_alerts:
+          - exp_labels:
+              alertname: QueueWaitHigh
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: Jobs are not starting, so users wait for their jobs to begin.
+              description: The oldest queued job has waited 130 seconds, above the 120 second limit.
+
+  - name: QueueWaitHigh exactly 120 never fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_oldest_queued_age_seconds{env="local", instance="a"}'
+        values: '120x60'
+      - series: 'runwatch_oldest_queued_age_seconds{env="local", instance="b"}'
+        values: '120x60'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: QueueWaitHigh
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: QueueWaitHigh
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: QueueWaitHigh
+        exp_alerts: []
+
+  - name: QueueWaitHigh blip shorter than for never fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_oldest_queued_age_seconds{env="local", instance="a"}'
+        values: '0 130x3 0x40'
+      - series: 'runwatch_oldest_queued_age_seconds{env="local", instance="b"}'
+        values: '0x44'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: QueueWaitHigh
+        exp_alerts: []
+      - eval_time: 1m30s
+        alertname: QueueWaitHigh
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: QueueWaitHigh
+        exp_alerts: []
+
+  - name: JobsStalled fires after for
+    interval: 15s
+    input_series:
+      - series: 'runwatch_jobs_stalled{env="local", instance="a"}'
+        values: '0x4 1x40'
+      - series: 'runwatch_jobs_stalled{env="local", instance="b"}'
+        values: '0x44'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: JobsStalled
+        exp_alerts: []
+      - eval_time: 1m30s
+        alertname: JobsStalled
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: JobsStalled
+        exp_alerts: []
+      - eval_time: 2m30s
+        alertname: JobsStalled
+        exp_alerts:
+          - exp_labels:
+              alertname: JobsStalled
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: Jobs have silently died, so users lose their running jobs.
+              description: '1 jobs are in the STALLED state.'
+
+  - name: JobsStalled blip of 30s never fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_jobs_stalled{env="local", instance="a"}'
+        values: '0x4 1x2 0x40'
+      - series: 'runwatch_jobs_stalled{env="local", instance="b"}'
+        values: '0x46'
+    alert_rule_test:
+      - eval_time: 1m15s
+        alertname: JobsStalled
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: JobsStalled
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: JobsStalled
+        exp_alerts: []
+
+  - name: JobsStalled one replica 0 and the other 2 fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_jobs_stalled{env="local", instance="a"}'
+        values: '0x44'
+      - series: 'runwatch_jobs_stalled{env="local", instance="b"}'
+        values: '2x44'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: JobsStalled
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: JobsStalled
+        exp_alerts:
+          - exp_labels:
+              alertname: JobsStalled
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: Jobs have silently died, so users lose their running jobs.
+              description: '2 jobs are in the STALLED state.'
+
+  - name: JobFailureRateHigh 10 attempts all infra fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x20 10x60'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0x80'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+      - eval_time: 6m30s
+        alertname: JobFailureRateHigh
+        exp_alerts:
+          - exp_labels:
+              alertname: JobFailureRateHigh
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: Jobs have started failing, so users see their jobs end in failure.
+              description: 'The share of attempts in the last 5 minutes that failed for infrastructure reasons is 1, above 0.5 (at least 5 attempts).'
+
+  - name: JobFailureRateHigh 4 attempts all infra is below minimum volume
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x20 4x60'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0x80'
+    alert_rule_test:
+      - eval_time: 6m30s
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+
+  - name: JobFailureRateHigh 5 attempts of which 3 infra fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x20 3x60'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0x20 2x60'
+    alert_rule_test:
+      - eval_time: 6m30s
+        alertname: JobFailureRateHigh
+        exp_alerts:
+          - exp_labels:
+              alertname: JobFailureRateHigh
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: Jobs have started failing, so users see their jobs end in failure.
+              description: 'The share of attempts in the last 5 minutes that failed for infrastructure reasons is 0.6, above 0.5 (at least 5 attempts).'
+
+  - name: JobFailureRateHigh exactly 50 percent never fires
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x20 5x60'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0x20 5x60'
+    alert_rule_test:
+      - eval_time: 6m30s
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+
+  - name: JobFailureRateHigh AC-20 workload failures next to load never fire
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x20 10x60'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0+1x80'
+    alert_rule_test:
+      - eval_time: 6m30s
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+
+  - name: JobFailureRateHigh ten workload failures and no other traffic never fire
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x20 10x60'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0x80'
+    alert_rule_test:
+      - eval_time: 6m30s
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+
+  - name: JobFailureRateHigh counters that never moved give no alert
+    interval: 15s
+    input_series:
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="infra"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="failed", cause="workload"}'
+        values: '0x80'
+      - series: 'runwatch_attempts_finished_total{env="local", outcome="succeeded", cause="none"}'
+        values: '0x80'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: JobFailureRateHigh
+        exp_alerts: []
+
+  - name: RunwatchApiDown fires when the series disappears
+    interval: 15s
+    input_series:
+      - series: 'runwatch_queue_depth{env="local"}'
+        values: '1x4 _x60'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RunwatchApiDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: RunwatchApiDown
+        exp_alerts:
+          - exp_labels:
+              alertname: RunwatchApiDown
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: The app is down, so users cannot submit or watch jobs.
+              description: No runwatch_queue_depth samples for env local in the last 2 minutes (value 1).
+
+  - name: RunwatchApiDown never fires while the series is present
+    interval: 15s
+    input_series:
+      - series: 'runwatch_queue_depth{env="local"}'
+        values: '1x80'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RunwatchApiDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: RunwatchApiDown
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: RunwatchApiDown
+        exp_alerts: []
+
+  - name: RunwatchApiDown fires for local when only another env reports
+    interval: 15s
+    input_series:
+      - series: 'runwatch_queue_depth{env="other"}'
+        values: '1x80'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: RunwatchApiDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: RunwatchApiDown
+        exp_alerts:
+          - exp_labels:
+              alertname: RunwatchApiDown
+              env: local
+              severity: critical
+              service: runwatch
+            exp_annotations:
+              summary: The app is down, so users cannot submit or watch jobs.
+              description: No runwatch_queue_depth samples for env local in the last 2 minutes (value 1).
