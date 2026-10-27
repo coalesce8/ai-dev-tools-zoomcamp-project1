@@ -1,0 +1,25 @@
+# Routes each alert by its env label to that environment's responder agent.
+# The bearer token is read from a file the container entrypoint writes from
+# AGENT_WEBHOOK_TOKEN; no token value lives here.
+route:
+  group_by: [alertname, env]
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 10m
+  # No integrations: an alert without a known env goes nowhere.
+  receiver: unrouted
+  routes:
+    - matchers:
+        - env="local"
+      receiver: agent-local
+
+receivers:
+  - name: unrouted
+  - name: agent-local
+    webhook_configs:
+      - url: http://agent:8090/webhook/alertmanager
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /tmp/agent_token
