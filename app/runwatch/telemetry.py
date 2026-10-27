@@ -21,8 +21,15 @@ from typing import Any
 
 from opentelemetry import propagate, trace
 from opentelemetry.context import Context
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import (
+    BatchLogRecordProcessor,
+    LogRecordExporter,
+    SimpleLogRecordProcessor,
+)
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
 from opentelemetry.sdk.metrics.view import View
@@ -38,6 +45,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_SERVICE = "runwatch-api"
 WORKER_SERVICE = "runwatch-worker"
+LOADGEN_SERVICE = "runwatch-loadgen"
 
 ATTR_JOB_ID = "job.id"
 ATTR_ATTEMPT_NUMBER = "attempt.number"
@@ -111,6 +119,28 @@ def build_meter_provider(
         export_interval_millis=METRIC_EXPORT_INTERVAL_MS,
     )
     return MeterProvider(resource=resource, metric_readers=[periodic], views=_VIEWS)
+
+
+def build_logger_provider(
+    service_name: str, exporter: LogRecordExporter | None = None
+) -> LoggerProvider:
+    """Build a log provider for one process.
+
+    An explicit exporter is used synchronously (tests). Otherwise the OTLP/HTTP
+    exporter is added when the endpoint variable is set; with neither there is
+    no processor and nothing is exported.
+    """
+    provider = LoggerProvider(resource=Resource({SERVICE_NAME: service_name}))
+    if exporter is not None:
+        provider.add_log_record_processor(SimpleLogRecordProcessor(exporter))
+        return provider
+    endpoint = (_TelemetrySettings().otel_exporter_otlp_endpoint or "").strip()
+    if endpoint:
+        url = endpoint.rstrip("/") + "/v1/logs"
+        provider.add_log_record_processor(
+            BatchLogRecordProcessor(OTLPLogExporter(endpoint=url))
+        )
+    return provider
 
 
 def set_tracer_provider(provider: TracerProvider | None) -> None:
