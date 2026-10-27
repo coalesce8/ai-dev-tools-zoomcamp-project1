@@ -31,6 +31,10 @@ The skeleton issue creates these; keep this list in sync with the
   integration file
 - `make test-frontend` - frontend typecheck and tests
 - `make lint` - lint, same as the ruff command below
+- `make kind-up` - create or start the kind cluster `runwatch` (stop
+  Compose first; see `docs/runbooks/kind-cluster.md`)
+- `make kind-down` - stop the cluster (never delete it)
+- `make kind-load IMAGES="a:tag b:tag"` - load local images into the cluster
 - `uv run pytest tests/unit/test_package.py` - one test file
 - `cd frontend && npx vitest run src/App.test.tsx` - one frontend test file
 - `cd frontend && npm run dev` - dev server, proxies `/api/v1` to

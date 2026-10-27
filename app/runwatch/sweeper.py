@@ -147,6 +147,10 @@ class LeaseSweeper:
                         "swept job_id=%s attempt_number=%d",
                         lease.job_id,
                         lease.attempt_number,
+                        extra={
+                            "job_id": str(lease.job_id),
+                            "attempt_number": lease.attempt_number,
+                        },
                     )
             except Exception as exc:
                 # Class name only: driver messages hold the host and port.

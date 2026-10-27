@@ -94,7 +94,9 @@ class Worker:
             if not self._claims_failing:
                 self._claims_failing = True
                 logger.warning(
-                    "claim failing: API unavailable worker_id=%s", self.worker_id
+                    "claim failing: API unavailable worker_id=%s",
+                    self.worker_id,
+                    extra={"worker_id": self.worker_id},
                 )
             return None
         except Exception as exc:
@@ -102,21 +104,34 @@ class Worker:
                 "claim response unusable error=%s worker_id=%s",
                 type(exc).__name__,
                 self.worker_id,
+                extra={"worker_id": self.worker_id},
             )
             return None
         if self._claims_failing:
             self._claims_failing = False
-            logger.info("claim working again worker_id=%s", self.worker_id)
+            logger.info(
+                "claim working again worker_id=%s",
+                self.worker_id,
+                extra={"worker_id": self.worker_id},
+            )
         return claim
 
     # -- one attempt ------------------------------------------------------
+
+    def _extra(self, claim: Claim) -> dict[str, object]:
+        return {
+            "job_id": str(claim.job_id),
+            "attempt_id": str(claim.attempt_id),
+            "attempt_number": claim.attempt_number,
+            "worker_id": self.worker_id,
+        }
 
     def _attempt(self, claim: Claim) -> None:
         ctx = (
             f"job_id={claim.job_id} attempt_id={claim.attempt_id} "
             f"attempt_number={claim.attempt_number} worker_id={self.worker_id}"
         )
-        logger.info("attempt started %s", ctx)
+        logger.info("attempt started %s", ctx, extra=self._extra(claim))
         tracer = self._tracer if self._tracer is not None else get_tracer()
         attrs = job_attributes(claim.job_id, claim.attempt_number)
         # Each attempt is its own trace: a root span (empty context) linked to
@@ -136,11 +151,20 @@ class Worker:
                     ):
                         outcome = self._work(claim)
                 except _Ended:
-                    logger.info("attempt ended without a result %s", ctx)
+                    logger.info(
+                        "attempt ended without a result %s",
+                        ctx,
+                        extra=self._extra(claim),
+                    )
                     return
                 except Exception as exc:
                     name = type(exc).__name__
-                    logger.error("attempt raised error=%s %s", name, ctx)
+                    logger.error(
+                        "attempt raised error=%s %s",
+                        name,
+                        ctx,
+                        extra=self._extra(claim),
+                    )
                     cause = failure_cause_for(FailureKind.WORKER_EXCEPTION)
                     outcome = ("failed", f"worker error: {name}", cause)
                 with start_span(
@@ -148,10 +172,15 @@ class Worker:
                 ):
                     self._send_result(claim, outcome, ctx)
             except _Ended:
-                logger.info("attempt ended without a result %s", ctx)
+                logger.info(
+                    "attempt ended without a result %s", ctx, extra=self._extra(claim)
+                )
             except Exception as exc:
                 logger.error(
-                    "attempt handling failed error=%s %s", type(exc).__name__, ctx
+                    "attempt handling failed error=%s %s",
+                    type(exc).__name__,
+                    ctx,
+                    extra=self._extra(claim),
                 )
 
     def _work(self, claim: Claim):
@@ -202,6 +231,7 @@ class Worker:
                     "attempt no longer current job_id=%s attempt_id=%s",
                     claim.job_id,
                     claim.attempt_id,
+                    extra=self._extra(claim),
                 )
                 raise _Ended from None
             except ApiUnavailable:
@@ -212,6 +242,7 @@ class Worker:
                         HEARTBEAT_GIVE_UP_S,
                         claim.job_id,
                         claim.attempt_id,
+                        extra=self._extra(claim),
                     )
                     raise _Ended from None
                 return
@@ -233,15 +264,22 @@ class Worker:
             try:
                 self.api.result(claim.attempt_id, name, reason, cause)
             except AttemptNotCurrent:
-                logger.info("result not accepted: attempt not current %s", ctx)
+                logger.info(
+                    "result not accepted: attempt not current %s",
+                    ctx,
+                    extra=self._extra(claim),
+                )
                 return
             except ApiUnavailable:
                 if self.monotonic() - first >= RESULT_GIVE_UP_S:
                     logger.warning(
-                        "giving up on result after %ss %s", RESULT_GIVE_UP_S, ctx
+                        "giving up on result after %ss %s",
+                        RESULT_GIVE_UP_S,
+                        ctx,
+                        extra=self._extra(claim),
                     )
                     return
                 self._sleep_checked(RESULT_RETRY_S)
             else:
-                logger.info("result sent %s", ctx)
+                logger.info("result sent %s", ctx, extra=self._extra(claim))
                 return

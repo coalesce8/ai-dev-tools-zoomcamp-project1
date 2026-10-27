@@ -225,6 +225,11 @@ def post_heartbeat(
         attempt_id,
         accepted,
         dropped,
+        extra={
+            "job_id": str(job.id),
+            "attempt_id": str(attempt_id),
+            "attempt_number": attempt.number,
+        },
     )
     return HeartbeatOut(
         attempt_id=attempt_id,
@@ -271,6 +276,11 @@ def post_result(
         attempt_id,
         new_attempt.state.value,
         new_job.state.value,
+        extra={
+            "job_id": str(job.id),
+            "attempt_id": str(attempt_id),
+            "attempt_number": attempt.number,
+        },
     )
     return ResultOut(
         attempt_id=attempt_id,

@@ -4,6 +4,7 @@ The state change itself is `runwatch.lifecycle.claim`; this module locks the
 row, applies the result and commits, all in one transaction.
 """
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Annotated, Any
@@ -22,6 +23,7 @@ from runwatch.models import Attempt, Job
 from runwatch.telemetry import extract_context, job_attributes, start_span
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ClaimRequest(BaseModel):
@@ -119,6 +121,17 @@ def claim_next(session: Session, worker_id: str) -> ClaimResult | None:
         attributes=job_attributes(job.id, attempt.number),
     ):
         session.commit()
+        logger.info(
+            "claimed job_id=%s attempt_id=%s attempt_number=%d",
+            result.job_id,
+            result.attempt_id,
+            result.attempt_number,
+            extra={
+                "job_id": str(result.job_id),
+                "attempt_id": str(result.attempt_id),
+                "attempt_number": result.attempt_number,
+            },
+        )
     return result
 
 
