@@ -10,6 +10,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
+from opentelemetry.context import Context
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ from runwatch import lifecycle
 from runwatch.db import get_session
 from runwatch.lifecycle import JobSnapshot, JobState
 from runwatch.models import Attempt, Job
+from runwatch.telemetry import extract_context, job_attributes, start_span
 
 router = APIRouter()
 
@@ -98,7 +100,14 @@ def claim_next(session: Session, worker_id: str) -> ClaimResult | None:
         lease_expires_at=attempt.lease_expires_at,
         trace_context=job.trace_context,
     )
-    session.commit()
+    # A child of the submit span when the job has a usable stored context,
+    # otherwise a root span.
+    with start_span(
+        "claim",
+        context=extract_context(job.trace_context) or Context(),
+        attributes=job_attributes(job.id, attempt.number),
+    ):
+        session.commit()
     return result
 
 
