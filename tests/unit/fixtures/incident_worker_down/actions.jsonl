@@ -1,0 +1,5 @@
+{"ts": "2026-03-01T14:00:10Z", "kind": "tool", "tool": "get_stats", "args": {}, "write": false, "ok": true, "summary": "0 workers, 31 jobs queued"}
+{"ts": "2026-03-01T14:00:20Z", "kind": "tool", "tool": "k8s_pods", "args": {"app": "worker"}, "write": false, "ok": true, "summary": "0 worker pods"}
+{"ts": "2026-03-01T14:00:40Z", "kind": "tool", "tool": "k8s_scale", "args": {"deployment": "worker", "replicas": 1}, "write": true, "ok": true, "summary": "worker scaled to 1"}
+{"ts": "2026-03-01T14:01:00Z", "kind": "tool", "tool": "requeue_stalled_jobs", "args": {}, "write": true, "ok": true, "summary": "4 jobs requeued"}
+{"ts": "2026-03-01T14:02:30Z", "kind": "verification", "tool": "get_stats", "args": {}, "write": false, "ok": true, "summary": "queue draining, 1 worker"}

@@ -1,0 +1,14 @@
+{
+  "status": "firing",
+  "labels": {
+    "alertname": "HighInfraFailureRate",
+    "env": "dev",
+    "severity": "critical"
+  },
+  "annotations": {
+    "summary": "Infra failure rate is high",
+    "description": "Fixture alert for HighInfraFailureRate"
+  },
+  "startsAt": "2026-03-01T12:00:00Z",
+  "fingerprint": "bad1"
+}

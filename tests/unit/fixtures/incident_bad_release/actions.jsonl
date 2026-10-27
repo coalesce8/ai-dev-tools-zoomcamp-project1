@@ -1,0 +1,8 @@
+{"ts": "2026-03-01T12:00:10Z", "kind": "tool", "tool": "get_stats", "args": {}, "write": false, "ok": true, "summary": "infra failure rate 0.92, 14 jobs queued"}
+{"ts": "2026-03-01T12:00:20Z", "kind": "tool", "tool": "k8s_rollout_history", "args": {"deployment": "worker"}, "write": false, "ok": true, "summary": "revision 5 created 11:58:41Z, image tag abc123"}
+{"ts": "2026-03-01T12:00:30Z", "kind": "tool", "tool": "query_loki", "args": {"query_chars": 86}, "write": false, "ok": true, "summary": "40 lines, 12 error lines"}
+{"ts": "2026-03-01T12:01:00Z", "kind": "tool", "tool": "k8s_rollout_undo", "args": {"deployment": "worker"}, "write": true, "ok": true, "summary": "rolled back to revision 4"}
+{"ts": "2026-03-01T12:01:20Z", "kind": "tool", "tool": "requeue_failed_jobs", "args": {"since": "2026-03-01T11:58:41Z", "until": "2026-03-01T12:01:20Z"}, "write": true, "ok": true, "summary": "9 jobs requeued"}
+{"ts": "2026-03-01T12:01:30Z", "kind": "tool", "tool": "k8s_scale", "args": {"deployment": "worker", "replicas": 9}, "write": true, "ok": false, "summary": "refused by tool rules"}
+{"ts": "2026-03-01T12:02:30Z", "kind": "verification", "tool": "get_stats", "args": {}, "write": false, "ok": false, "summary": "infra failure rate 0.30"}
+{"ts": "2026-03-01T12:03:30Z", "kind": "verification", "tool": "get_stats", "args": {}, "write": false, "ok": true, "summary": "infra failure rate 0.00"}
