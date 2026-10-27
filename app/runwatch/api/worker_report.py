@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import (
     AwareDatetime,
     BaseModel,
@@ -238,6 +238,7 @@ def post_heartbeat(
 def post_result(
     attempt_id: uuid.UUID,
     body: ResultIn,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
 ) -> ResultOut:
     job, attempt, now = _lock(session, attempt_id)
@@ -257,7 +258,13 @@ def post_result(
     _apply_attempt(attempt, new_attempt)
     if new_job.state.value == "QUEUED":
         job.queued_at = now
+    # Both are database times (`started_at` from the claim, `now` from this
+    # transaction), so replica clock skew cannot distort the duration.
+    run_seconds = (new_attempt.finished_at - attempt.started_at).total_seconds()
     session.commit()
+    request.app.state.metrics.result_reported(
+        new_attempt.state, new_attempt.failure_cause, new_job.state, run_seconds
+    )
     logger.info(
         "result job_id=%s attempt_id=%s attempt_state=%s job_state=%s",
         job.id,

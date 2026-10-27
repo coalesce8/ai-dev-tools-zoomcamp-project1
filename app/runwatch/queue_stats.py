@@ -52,6 +52,11 @@ def count_by_state(session: Session) -> dict[str, int]:
     return {state.value: found.get(state.value, 0) for state in JobState}
 
 
+def database_now(session: Session) -> datetime:
+    """The database clock, which every age and window here is measured with."""
+    return session.scalar(select(func.now()))
+
+
 def oldest_queued_age_seconds(session: Session, now: datetime) -> float | None:
     # Age = now - min(queued_at) over QUEUED jobs only, clamped at 0, None if
     # nothing is queued. queued_at (not created_at) is reset on every return

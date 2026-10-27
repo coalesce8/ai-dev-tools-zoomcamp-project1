@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from runwatch.api.job_schemas import JobCreate, JobOut
@@ -26,6 +26,7 @@ router = APIRouter()
 @router.post("/jobs", status_code=201, response_model=JobOut)
 def submit_job(
     body: JobCreate,
+    request: Request,
     response: Response,
     session: Annotated[Session, Depends(get_session)],
 ) -> Job:
@@ -42,6 +43,7 @@ def submit_job(
         )
         session.add(job)
         session.commit()
+    request.app.state.metrics.submitted()
     session.refresh(job)
     response.headers["Location"] = f"/api/v1/jobs/{job.id}"
     logger.info("job submitted job_id=%s", job.id)
