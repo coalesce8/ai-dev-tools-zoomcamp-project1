@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: runwatch
+---
+# Namespaced on purpose: the agent can touch only its own environment.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: runwatch
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: runwatch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent
+subjects:
+  - kind: ServiceAccount
+    name: agent
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agent-incidents
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: runwatch
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+  labels: &labels
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: runwatch
+spec:
+  selector: *labels
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+  labels: &labels
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: runwatch
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: *labels
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      serviceAccountName: agent
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: agent
+          image: ghcr.io/coalesce8/runwatch-app
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "--factory", "runwatch.agent.app:create_app", "--host", "0.0.0.0", "--port", "8090"]
+          ports:
+            - name: http
+              containerPort: 8090
+          # AGENT_ENV is set by each overlay.
+          env:
+            - name: RUNWATCH_API_URL
+              value: http://api:8000
+            - name: AGENT_LOKI_URL
+              value: http://loki.runwatch-observability.svc.cluster.local:3100
+            - name: AGENT_INCIDENTS_DIR
+              value: /incidents
+            - name: AGENT_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AGENT_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent
+                  key: webhook-token
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agent
+                  key: anthropic-api-key
+                  optional: true
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent
+                  key: github-token
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: incidents
+              mountPath: /incidents
+      volumes:
+        - name: incidents
+          persistentVolumeClaim:
+            claimName: agent-incidents

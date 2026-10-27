@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: runwatch-prod
+resources:
+  - namespace.yaml
+  - ../../base
+labels:
+  - pairs:
+      env: prod
+    includeSelectors: false
+    includeTemplates: false
+# CD (#35) replaces each newTag with the commit SHA. "local" is for images
+# loaded into kind by hand (#33).
+images:
+  - name: ghcr.io/coalesce8/runwatch-app
+    newTag: local
+  - name: ghcr.io/coalesce8/runwatch-frontend
+    newTag: local
+patches:
+  - target:
+      kind: Deployment
+      name: otel-collector
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: otel-collector
+      spec:
+        template:
+          spec:
+            containers:
+              - name: otel-collector
+                env:
+                  - name: DEPLOYMENT_ENV
+                    value: prod
+  - target:
+      kind: Deployment
+      name: agent
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: agent
+      spec:
+        template:
+          spec:
+            containers:
+              - name: agent
+                env:
+                  - name: AGENT_ENV
+                    value: prod
+  - target:
+      kind: Ingress
+      name: runwatch
+    patch: |-
+      - op: add
+        path: /spec/rules/0/host
+        value: prod.localhost

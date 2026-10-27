@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-frontend test-integration need-database-url lint kind-up kind-down kind-load
+.PHONY: test test-unit test-frontend test-integration need-database-url lint kind-up kind-down kind-load k8s-render k8s-validate k8s-secrets
 
 KIND_KUBECONFIG ?= $(HOME)/.kube/runwatch-kind.config
 KIND_MIN_AVAILABLE_MB ?= 1500
@@ -36,3 +36,27 @@ kind-down:
 
 kind-load:
 	scripts/kind-cluster.sh load $(IMAGES)
+
+# Offline: renders the manifests; no cluster is contacted.
+k8s-render:
+	@case "$(ENV)" in dev|prod) ;; *) echo "ENV must be dev or prod, e.g. make k8s-render ENV=dev" >&2; exit 1;; esac
+	@command -v kubectl >/dev/null || { echo "kubectl is not installed" >&2; exit 1; }
+	kubectl kustomize k8s/overlays/$(ENV)
+
+# Offline: renders both overlays and checks them with kubeconform in one named, reusable container.
+k8s-validate:
+	@command -v kubectl >/dev/null || { echo "kubectl is not installed" >&2; exit 1; }
+	@command -v docker >/dev/null || { echo "docker is not installed" >&2; exit 1; }
+	@docker container inspect runwatch-kubeconform >/dev/null 2>&1 || \
+		docker create -i --name runwatch-kubeconform ghcr.io/yannh/kubeconform:v0.7.0 \
+		-strict -summary -kubernetes-version 1.34.0 - >/dev/null
+	@set -e; for env in dev prod; do \
+		echo "== $$env"; \
+		kubectl kustomize k8s/overlays/$$env > "$${TMPDIR:-/tmp}/runwatch-k8s-$$env.yaml"; \
+		echo "resources: $$(grep -c '^kind:' "$${TMPDIR:-/tmp}/runwatch-k8s-$$env.yaml")"; \
+		docker start -a -i runwatch-kubeconform < "$${TMPDIR:-/tmp}/runwatch-k8s-$$env.yaml"; \
+	done
+
+# Talks to the kind cluster unless DRY_RUN=1.
+k8s-secrets:
+	scripts/k8s-secrets.sh $(ENV)
