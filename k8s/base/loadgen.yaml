@@ -23,6 +23,8 @@ spec:
           env:
             - name: RUNWATCH_API_URL
               value: http://api:8000
+            - name: LOADGEN_INTERVAL_S
+              value: "20"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4318
           securityContext:
