@@ -143,7 +143,7 @@ def test_timeout_is_5s():
 def test_settings(monkeypatch):
     monkeypatch.setenv("RUNWATCH_API_URL", "http://x")
     monkeypatch.delenv("LOADGEN_INTERVAL_S", raising=False)
-    assert load_loadgen_settings().loadgen_interval_s == 10
+    assert load_loadgen_settings().loadgen_interval_s == 20
     monkeypatch.setenv("LOADGEN_INTERVAL_S", "2.5")
     assert load_loadgen_settings().loadgen_interval_s == 2.5
     for bad in ["0", "-1", "abc"]:

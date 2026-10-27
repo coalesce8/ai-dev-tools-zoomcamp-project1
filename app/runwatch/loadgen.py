@@ -38,7 +38,7 @@ class LoadgenSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     runwatch_api_url: str = Field(min_length=1)
-    loadgen_interval_s: float = Field(default=10.0, gt=0, allow_inf_nan=False)
+    loadgen_interval_s: float = Field(default=20.0, gt=0, allow_inf_nan=False)
 
 
 def load_loadgen_settings() -> LoadgenSettings:
