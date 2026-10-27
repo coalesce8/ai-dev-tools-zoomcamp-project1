@@ -15,6 +15,7 @@ patches:
         name: ingress-nginx-controller
         namespace: ingress-nginx
       spec:
+        minReadySeconds: null
         template:
           spec:
             containers:
@@ -36,3 +37,20 @@ patches:
         namespace: ingress-nginx
       data:
         allow-snippet-annotations: "false"
+  # Upstream Jobs delete themselves at once (ttl 0), so every apply recreated
+  # them. Keep them for a year so a re-apply sees them unchanged.
+  - target:
+      kind: Job
+      name: ingress-nginx-admission-.*
+    patch: |-
+      - op: add
+        path: /spec/ttlSecondsAfterFinished
+        value: 31536000
+  # Write the defaulted `scope` so a re-apply sees no difference.
+  - target:
+      kind: ValidatingWebhookConfiguration
+      name: ingress-nginx-admission
+    patch: |-
+      - op: add
+        path: /webhooks/0/rules/0/scope
+        value: '*'

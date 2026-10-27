@@ -32,11 +32,12 @@ Variables: `KIND_KUBECONFIG` (default `~/.kube/runwatch-kind.config`),
 `KIND_MIN_AVAILABLE_MB` (default 1500). The script also reads
 `KIND_MEMORY` (default `3g`). They are not read by the app.
 
-Re-running `make kind-up` creates no second cluster. `kubectl apply -k`
-reports `unchanged` for almost everything; the ingress-nginx admission
-Jobs have `ttlSecondsAfterFinished: 0`, so they are re-created on every
-apply, and the Deployment and the admission webhook show `configured`
-(a client-side apply quirk of the upstream manifest, no real change).
+Re-running `make kind-up` creates no second cluster and `kubectl apply
+-k` reports `unchanged` for every resource. `deploy/kind/kustomization.yaml`
+makes that so: it keeps the admission Jobs for a year (upstream deletes
+them at once, so each apply recreated them), writes the defaulted webhook
+rule `scope`, and drops `minReadySeconds: 0`. (The first apply after
+changing those patches shows a one-off `configured`/`created`.)
 `make kind-load` first tries `kind load docker-image`; if that fails on a
 multi-platform image (Docker's containerd image store), it retries with a
 single-platform archive.
