@@ -382,8 +382,8 @@ change as work continues.
 - Not done yet: the demo recording and public URL, the first CD run, and the
   live-model drill (AC-21, AC-22; owner-only). The no-model drills and their
   `skipped_no_model` incident reports are done
-  ([`incidents/README.md`](incidents/README.md)); a few browser-only checks
-  remain open in [`docs/live-checks.md`](docs/live-checks.md).
+  ([`incidents/README.md`](incidents/README.md)); the browser-only checks were
+  done afterwards ([`docs/live-checks.md`](docs/live-checks.md), rows 3c and 15b).
 
 ## Project criteria checklist
 
