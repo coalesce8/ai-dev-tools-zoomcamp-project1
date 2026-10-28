@@ -140,7 +140,11 @@ deployment statuses); all times UTC.
   dispatch; `build` found no `sha` input, chose `main`'s head and rebuilt and pushed that SHA's images again (the
   "both tags exist" skip applies only when `sha` is set); both
   deploy jobs were skipped. It deployed nothing and is not counted as evidence
-  for the dispatch criteria.
+  for the dispatch criteria. The cause of the skipped `deploy-dev` was the
+  implicit `success()` that GitHub adds to an `if` without a status-check
+  function: it is false when any job in the `needs` chain (here `ci`) was
+  skipped. Fixed in #112 by adding `!cancelled()` to the condition (the
+  `deploy-prod` condition already had it).
 
 Not yet exercised: a dispatch with `environment=dev` and the previous `sha`
 (rollback path 2), and a dispatch from a branch other than `main` (both

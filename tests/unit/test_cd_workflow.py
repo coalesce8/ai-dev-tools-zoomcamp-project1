@@ -149,3 +149,170 @@ def test_deploy_steps():
             and "rollout history deployment/worker" in runs
         )
         assert "tail -n 3" in runs
+
+
+def _cond(job):
+    """The `if` of a job without `${{ }}` and surrounding whitespace."""
+    text = job["if"].strip()
+    assert text.startswith("${{") and text.endswith("}}")
+    return text[3:-2].strip()
+
+
+DEV_IF = (
+    "!cancelled() && needs.build.result == 'success' "
+    "&& github.ref == 'refs/heads/main' "
+    "&& (github.event_name == 'push' "
+    "|| (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'))"
+)
+PROD_IF = (
+    "!cancelled() && needs.build.result == 'success' "
+    "&& github.ref == 'refs/heads/main' "
+    "&& ((github.event_name == 'push' && needs.deploy-dev.result == 'success') "
+    "|| (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'))"
+)
+
+
+def test_deploy_conditions_exact_shape():
+    assert _cond(JOBS["deploy-dev"]) == DEV_IF
+    assert _cond(JOBS["deploy-prod"]) == PROD_IF
+    assert "inputs.environment == 'prod'" not in JOBS["deploy-dev"]["if"]
+
+
+def _tokens(expr):
+    return re.findall(r"&&|\|\||==|\(|\)|!cancelled\(\)|'[^']*'|[\w.\-]+", expr)
+
+
+def _eval(expr, ctx):
+    """Evaluate the small expression subset used by the deploy conditions."""
+    toks = _tokens(expr)
+    pos = 0
+
+    def peek():
+        return toks[pos] if pos < len(toks) else None
+
+    def take():
+        nonlocal pos
+        pos += 1
+        return toks[pos - 1]
+
+    def primary():
+        t = take()
+        if t == "(":
+            v = or_()
+            assert take() == ")"
+            return v
+        if t == "!cancelled()":
+            return True  # the run is never cancelled in the matrix
+        if t.startswith("'"):
+            return t[1:-1]
+        return ctx[t]
+
+    def eq():
+        v = primary()
+        while peek() == "==":
+            take()
+            v = v == primary()
+        return v
+
+    def and_():
+        v = eq()
+        while peek() == "&&":
+            take()
+            r = eq()
+            v = v and r
+        return v
+
+    def or_():
+        v = and_()
+        while peek() == "||":
+            take()
+            r = and_()
+            v = v or r
+        return v
+
+    result = or_()
+    assert pos == len(toks), toks
+    return result
+
+
+def _runs(name, results, ctx, needs_of):
+    """Whether job `name` runs, with GitHub's implicit success() rule."""
+    cond = _cond(JOBS[name])
+    if not re.search(r"!cancelled\(\)|always\(\)|failure\(\)", cond):
+        ancestors, todo = set(), list(needs_of(name))
+        while todo:
+            n = todo.pop()
+            if n not in ancestors:
+                ancestors.add(n)
+                todo.extend(needs_of(n))
+        if any(results[a] not in ("success",) for a in ancestors):
+            return False
+    return bool(_eval(cond, ctx))
+
+
+def _needs(name):
+    n = JOBS[name].get("needs", [])
+    return [n] if isinstance(n, str) else list(n)
+
+
+def _simulate(event, ref, env, ci, build):
+    results = {"ci": ci, "build": build}
+    base = {
+        "github.event_name": event,
+        "github.ref": ref,
+        "inputs.environment": env,
+    }
+
+    def ctx_for(extra):
+        c = dict(base)
+        c["needs.build.result"] = results["build"]
+        c.update(extra)
+        return c
+
+    # `build` only runs when ci succeeded or was skipped (its own condition).
+    if build is None:
+        results["build"] = "skipped"
+    dev_runs = _runs("deploy-dev", results, ctx_for({}), _needs)
+    results["deploy-dev"] = "success" if dev_runs else "skipped"
+    prod_runs = _runs(
+        "deploy-prod",
+        results,
+        ctx_for({"needs.deploy-dev.result": results["deploy-dev"]}),
+        _needs,
+    )
+    return dev_runs, prod_runs
+
+
+MAIN = "refs/heads/main"
+
+
+def test_deploy_matrix():
+    cases = [
+        # event, ref, input, ci, build, dev, prod
+        ("push", MAIN, "", "success", "success", True, True),
+        ("push", MAIN, "", "success", "failure", False, False),
+        ("workflow_dispatch", MAIN, "dev", "skipped", "success", True, False),
+        ("workflow_dispatch", MAIN, "prod", "skipped", "success", False, True),
+        (
+            "workflow_dispatch",
+            "refs/heads/other",
+            "dev",
+            "skipped",
+            "success",
+            False,
+            False,
+        ),
+        (
+            "workflow_dispatch",
+            "refs/heads/other",
+            "prod",
+            "skipped",
+            "success",
+            False,
+            False,
+        ),
+        ("workflow_dispatch", MAIN, "dev", "skipped", "failure", False, False),
+    ]
+    for event, ref, env, ci, build, dev, prod in cases:
+        got = _simulate(event, ref, env, ci, build)
+        assert got == (dev, prod), (event, ref, env, ci, build, got)

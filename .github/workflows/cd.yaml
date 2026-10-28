@@ -3,7 +3,10 @@ name: CD
 # Push to main: CI, build and push both images (tag = commit SHA), deploy to
 # dev, then deploy to prod after the `prod` environment's reviewer approves.
 # Manual dispatch (the second rollback path): redeploy the images of a
-# previous `sha` to `environment`. Deploy jobs run on the self-hosted runner
+# previous `sha` to `environment`. `ci` is skipped on a dispatch, so both
+# deploy conditions start with `!cancelled()`: without a status-check
+# function GitHub adds an implicit `success()`, which is false when any job
+# in the `needs` chain was skipped (#112). Deploy jobs run on the self-hosted runner
 # on the VM, which reaches the kind cluster; see docs/runbooks/deploy.md and
 # docs/runbooks/self-hosted-runner.md.
 #
@@ -120,7 +123,7 @@ jobs:
   deploy-dev:
     name: deploy-dev
     needs: build
-    if: ${{ needs.build.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')) }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')) }}
     runs-on: [self-hosted, runwatch-vm]
     timeout-minutes: 30
     environment: dev
