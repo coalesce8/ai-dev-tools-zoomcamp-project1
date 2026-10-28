@@ -3,7 +3,8 @@
 Steps for the repository owner. The deploy jobs of
 `.github/workflows/cd.yaml` run on a runner on the VM, because only the VM
 reaches the kind cluster. Nothing here needs `sudo` and nothing goes into the
-repository. This is tracked by #73.
+repository. Done by the owner on 2026-10-28 (#73, closed); kept for
+re-registering the runner.
 
 Register the runner **after** `cd.yaml` is on `main`.
 

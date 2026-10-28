@@ -100,6 +100,52 @@ the `kubectl get pods` output. Then:
    redeploy the previous SHA), or fix forward with a new merge.
 3. A failed `deploy-dev` stops the push run: `deploy-prod` is skipped.
 
+## First CD run (evidence, 2026-10-28)
+
+Recorded for #35. Read with `gh api` (job times from
+`actions/runs/<id>/jobs`, approval from `actions/runs/<id>/approvals` and the
+deployment statuses); all times UTC.
+
+- Runner `work-VirtualBox` online, labels `self-hosted,Linux,X64,runwatch-vm`.
+  Environment `dev`: no reviewers. Environment `prod`: one required reviewer
+  (the repository owner, self-review allowed) and a custom deployment branch
+  policy.
+- Run [40669522952](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40669522952):
+  push of #110 (`9fcb0223068eee855861e3077981209b089c0163`) to `main`.
+  `ci` 10:06:56 to 10:18:47 (success); `build` (GitHub-hosted) 10:18:50 to
+  10:19:11; `deploy-dev` 11:03:54 to 11:07:39 (about 4 minutes, runner
+  `work-VirtualBox`); `deploy-prod` 11:14:35 to 11:15:44 (success).
+- `deploy-dev` sat queued from 10:19 to 11:03: the runner had been registered
+  only at about 10:53, and it first ran the older push run 40601364357
+  (`919d9c1`, deploy-dev 10:53:35 to 11:03:51, deploy-prod 11:11:16 to
+  11:12:16).
+- Prod approval: `coalesce8` approved the `prod` deployment; the approvals API
+  gives no time, the deployment statuses do: `waiting` 11:12:17, approved
+  (`queued`) 11:14:33, `in_progress` 11:14:35. `deploy-prod` did nothing
+  while waiting (it waited behind the `deploy-prod` concurrency group for the
+  older run until 11:12:16, then for the reviewer for about 2 minutes). For
+  `919d9c1`: waiting 11:03:53, approved 11:11:15.
+- Job log of both deploy jobs: `== images:
+  ghcr.io/coalesce8/runwatch-app:9fcb0223... ghcr.io/coalesce8/runwatch-frontend:9fcb0223...`,
+  `6 container image(s) end with :9fcb0223068eee855861e3077981209b089c0163`,
+  smoke checks passed.
+- Cross-check afterwards (read-only): all six Deployments of `runwatch-dev`
+  and `runwatch-prod` run the `:9fcb0223...` app and frontend images;
+  `rollout history deployment/api` newest revision is `deploy 9fcb022 by
+  40669522952` in both (dev revision 7, prod revision 4);
+  `http://dev.localhost/` and `http://prod.localhost/` return 200.
+- `gh run list --workflow CD --event pull_request` is empty.
+- Run 40676273591 (`workflow_dispatch` on `main`, 10:58:12 to 10:58:43, empty
+  `sha`): only `build` ran. `ci` runs only on `push`, so it is skipped on a
+  dispatch; `build` found no `sha` input, chose `main`'s head and rebuilt and pushed that SHA's images again (the
+  "both tags exist" skip applies only when `sha` is set); both
+  deploy jobs were skipped. It deployed nothing and is not counted as evidence
+  for the dispatch criteria.
+
+Not yet exercised: a dispatch with `environment=dev` and the previous `sha`
+(rollback path 2), and a dispatch from a branch other than `main` (both
+deploy jobs must skip).
+
 ## After a rollback: the next merge deploys the committed state
 
 After an agent or manual `kubectl rollout undo` the cluster differs from

@@ -52,7 +52,7 @@ The old images are deployed with the CURRENT manifests and scripts of
 `main`'s head, not the old manifests. A manifest change is rolled back with a
 revert PR (see "After a rollback").
 
-The self-hosted runner must be online (#73, see
+The self-hosted runner must be online (see
 [self-hosted-runner.md](self-hosted-runner.md)), otherwise the run queues.
 
 ## Which path to use

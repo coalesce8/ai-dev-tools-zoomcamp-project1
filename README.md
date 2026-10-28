@@ -220,15 +220,17 @@ Honest status:
 - CI (the PR part) is in use on this repository.
 - CD is written, unit-tested ([`tests/unit/test_cd_workflow.py`](tests/unit/test_cd_workflow.py),
   [`tests/unit/test_deploy_script.py`](tests/unit/test_deploy_script.py)) and
-  its deploy script was run by hand against the local kind cluster. The CD
-  workflow does start on every merge to `main`: as of 2026-10-28 its `ci` and
-  `build` jobs (tests, then both images pushed to GHCR) complete successfully,
-  but `deploy-dev` stays pending because no self-hosted runner is registered
-  yet. **No deploy has been done by CD**: it needs the owner to register the
-  runner and create the `dev` / `prod` GitHub environments
-  ([issue #73](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/issues/73),
-  [`self-hosted-runner.md`](docs/runbooks/self-hosted-runner.md)). The prod
-  manual-approval path is therefore described, not yet demonstrated.
+  has run for real. The owner registered the self-hosted runner and created the
+  `dev` / `prod` GitHub environments (#73, closed). [CD run 40669522952](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40669522952),
+  a push of #110 (`9fcb022`) to `main`, passed `ci`, `build`, `deploy-dev`
+  (about 4 minutes, on the runner) and `deploy-prod`, which waited for the
+  reviewer of the `prod` environment and ran after approval; the dev and prod
+  Deployments run `ghcr.io/coalesce8/runwatch-{app,frontend}:9fcb0223...`, the
+  rollout history says `deploy 9fcb022 by 40669522952`, and
+  `http://dev.localhost/` and `http://prod.localhost/` answer 200. Times and
+  details: "First CD run" in [`deploy.md`](docs/runbooks/deploy.md). Not yet
+  shown: a dispatch with `environment=dev` and an earlier `sha`, and a
+  dispatch from a branch other than `main` (both deploy jobs skipped).
 - One rollback was exercised live, without a model: path 1,
   `make rollback ENV=dev DEPLOY=worker` on the kind cluster, 2026-10-28, see
   "Exercised rollbacks" in the runbook and
@@ -399,8 +401,8 @@ The 12 criteria of the course ([`_docs/old/PROJECT.md`](_docs/old/PROJECT.md),
 | 5 | Application | [`app/`](app/), [`frontend/`](frontend/); `docker compose up --build` | Done |
 | 6 | Testing | [Tests](#tests-one-command): unit, frontend and integration with `make test` | Done |
 | 7 | Containerization | [`compose.yaml`](compose.yaml), [`Dockerfile`](Dockerfile) | Done |
-| 8 | Deployment | [Kubernetes](#kubernetes-kind-dev-and-prod), [`deploy.md`](docs/runbooks/deploy.md); deployed to a local kind cluster, no public URL | Partial: steps and manifests done and checked on kind by hand; **demo recording pending (owner step)** |
-| 9 | CI/CD | [CI/CD](#cicd), [`ci.yaml`](.github/workflows/ci.yaml), [`cd.yaml`](.github/workflows/cd.yaml), [`rollback.md`](docs/runbooks/rollback.md) | CI in use; CD to dev with manual-approval prod written and tested; CI and image build run on every merge, **deploy jobs not yet run (needs self-hosted runner, #73)** |
+| 8 | Deployment | [Kubernetes](#kubernetes-kind-dev-and-prod), [`deploy.md`](docs/runbooks/deploy.md); deployed to a local kind cluster, no public URL | Partial: dev and prod deployed by CD to kind and checked (run 40669522952); **no public URL, demo recording pending (owner step)** |
+| 9 | CI/CD | [CI/CD](#cicd), [`ci.yaml`](.github/workflows/ci.yaml), [`cd.yaml`](.github/workflows/cd.yaml), [`rollback.md`](docs/runbooks/rollback.md) | CI in use; CD in use: a push to `main` ran CI, build, deploy-dev and, after approval, deploy-prod on the self-hosted runner (run 40669522952). **Not yet exercised: rollback path 2 (dispatch redeploy of an earlier SHA) and the non-`main` dispatch guard** |
 | 10 | Observability | [Observability](#observability), [`observability/`](observability/) | Done (traces, metrics and logs share a trace id; viewable in Grafana) |
 | 11 | Alerting on user impact | [Alerting](#alerting-on-user-impact), [`runwatch.yaml`](observability/rules/runwatch.yaml) | Done (four rules, promtool-tested); alert timings measured live without a model ([`docs/live-checks.md`](docs/live-checks.md)); live-model drill is owner-only |
 | 12 | On-call agent | [Responder agent](#responder-agent), [`app/runwatch/agent/`](app/runwatch/agent/) | Implemented and tested with fake model clients; **no live-model run, no real incident fixed**: owner step |
