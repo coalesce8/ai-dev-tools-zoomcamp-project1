@@ -37,7 +37,7 @@ RUNNING 1 counters right after submit; the job page opens already RUNNING.
 
 | Shot | Caption |
 | --- | --- |
-| ![Jobs page](01a-jobs-page.jpg) | `01a-jobs-page.jpg`: the Jobs page at `http://dev.localhost` on the kind dev stack: submit form and live counters. |
+| ![Jobs page](01a-jobs-page.jpg) | `01a-jobs-page.jpg`: the Jobs page at `http://dev.localhost` on the kind dev stack: submit form and live counters. STALLED 22 is the earlier setup (old load-generator jobs from previous drills), requeued before the drill. |
 | ![Job succeeded](01b-job-succeeded.jpg) | `01b-job-succeeded.jpg`: the job page of an earlier `demo-1` job: SUCCEEDED, attempt 1/3, created, started and finished times. |
 
 ## 2. Grafana: dashboard, logs
@@ -45,7 +45,7 @@ RUNNING 1 counters right after submit; the job page opens already RUNNING.
 | Shot | Caption |
 | --- | --- |
 | ![Grafana dashboard](02a-grafana-dashboard.jpg) | `02a-grafana-dashboard.jpg`: Runwatch dashboard (15 min, env All), taken after the incident story: queue depth and oldest queued age climb while the worker was down, the Stalled jobs panel shows the dev spike of 1 (and the constant 13 for prod from earlier drills), throughput drops and recovers. |
-| ![Grafana logs](02b-grafana-logs.jpg) | `02b-grafana-logs.jpg`: the dashboard Logs panel (Loki): API log lines carry only `job_id` and `attempt_id`, never job names. |
+| ![Grafana logs](02b-grafana-logs.jpg) | `02b-grafana-logs.jpg`: the dashboard Logs panel (Loki): API log lines carry `job_id` plus `attempt_id`, `worker_id` and `attempt_number`, and no job names. |
 
 ## 3. The incident story on dev
 
@@ -53,6 +53,12 @@ Commands (all with the kind kubeconfig, dev only): `DRY_RUN=1 make break-worker`
 first (it prints one command, `kubectl -n runwatch-dev scale deployment/worker
 --replicas=0`), then `make break-worker` at 13:23:52Z, `make heal` at 13:30Z,
 then the stalled job was requeued with `POST /api/v1/jobs/<id>/requeue`.
+
+**Setup, disclosed:** before the drill I requeued 22 old STALLED
+load-generator jobs on dev (left by earlier drills) so the dev `JobsStalled`
+alert could go from pending to firing instead of already firing. That left a
+backlog on the single worker, so `QueueWaitHigh` was already firing at the
+start.
 
 [![Incident GIF](02-incident-alert-to-recovery.gif)](02-incident-alert-to-recovery.gif)
 
@@ -62,7 +68,7 @@ page, the Jobs page).
 
 | Shot | Caption |
 | --- | --- |
-| ![Before](03a-alerts-before.jpg) | `03a-alerts-before.jpg`: before the break. `QueueWaitHigh` was already firing for dev (a backlog left by an earlier requeue of stalled load-generator jobs), and `JobsStalled` firing is the stale prod instance (prod is scaled to 0). Not a clean start, said honestly. |
+| ![Before](03a-alerts-before.jpg) | `03a-alerts-before.jpg`: before the break. `QueueWaitHigh` was already firing for dev (the backlog left by my setup requeue of 22 old STALLED load-generator jobs, see above), and `JobsStalled` firing is the stale prod instance (prod is scaled to 0). Not a clean start, said honestly. |
 | ![Pending](03b-jobsstalled-pending.jpg) | `03b-jobsstalled-pending.jpg`: 13:25:43Z, about 2 minutes after `make break-worker`, the dev `JobsStalled` instance is PENDING (rule `for: 1m`, value 1). |
 | ![Firing](03c-jobsstalled-firing.jpg) | `03c-jobsstalled-firing.jpg`: about 1 minute later it is FIRING for dev and prod. |
 | ![Agent report](03d-agent-report-skipped-no-model.jpg) | `03d-agent-report-skipped-no-model.jpg`: the incident report from `GET /incidents/<id>` on the dev agent service (port-forward): `outcome: skipped_no_model`, evidence and actions "None recorded". **There is no model, so nobody diagnosed or fixed anything.** The report is the agent's record that the alert reached it. |
@@ -76,16 +82,16 @@ Reports of the earlier no-model drills are in [`incidents/`](../../incidents/REA
 | Shot | Caption |
 | --- | --- |
 | ![CI run](04a-ci-run-green.jpg) | `04a-ci-run-green.jpg`: a pull request CI run: `lint`, `backend`, `frontend` and `CI passed` all green (the check to wait for). |
-| ![CD run](04b-cd-run-ci-build-deploy-dev-deploy-prod.jpg) | `04b-cd-run-ci-build-deploy-dev-deploy-prod.jpg`: a completed CD run for a push to `main` (run 40669522952): `ci`, `build`, `deploy-dev` and `deploy-prod` all succeeded, deploy-prod after approval. |
+| ![CD run](04b-cd-run-ci-build-deploy-dev-deploy-prod.jpg) | `04b-cd-run-ci-build-deploy-dev-deploy-prod.jpg`: a completed CD run for a push to `main` (run 40669522952): `ci`, `build`, `deploy-dev` and `deploy-prod` all succeeded (the approval itself is not shown in this image; see run 40669522952 and README row 9). |
 | ![Approval gate](04c-cd-prod-approval-gate.jpg) | `04c-cd-prod-approval-gate.jpg`: the CD run of the next push to `main` (run 40691005380): CI, build and `deploy-dev` done, `deploy-prod` Waiting with "prod require an approval to start deploying changes". The owner approves; the agent never does. |
-| ![Rollback dispatch](04d-cd-rollback-dispatch.jpg) | `04d-cd-rollback-dispatch.jpg`: the rollback dispatch run 40687761011 (rollback path 2: a manual dispatch with `environment=dev` and an earlier `sha`; `build` and `deploy-dev` ran, `ci` and `deploy-prod` were skipped): see [`docs/runbooks/rollback.md`](../runbooks/rollback.md). |
+| ![Rollback dispatch](04d-cd-rollback-dispatch.jpg) | `04d-cd-rollback-dispatch.jpg`: the rollback dispatch run 40687761011 (rollback path 2: a manual dispatch with `environment=dev` and an earlier `sha` (the SHA is not shown in the image; see the run and `rollback.md`); `build` and `deploy-dev` ran, `ci` and `deploy-prod` were skipped): see [`docs/runbooks/rollback.md`](../runbooks/rollback.md). |
 
 ## 5. Work tracked by agents, from the tracker
 
 | Shot | Caption |
 | --- | --- |
 | ![Issue with ACs](05a-issue-with-ac.jpg) | `05a-issue-with-ac.jpg`: a groomed issue (#36) with Goal, Spec and acceptance criteria (`AC-...`) from [`_docs/SPEC.md`](../../_docs/SPEC.md). |
-| ![Merged PRs](05b-merged-prs.jpg) | `05b-merged-prs.jpg`: merged pull requests, one per issue, each with `Closes #n`. |
+| ![Merged PRs](05b-merged-prs.jpg) | `05b-merged-prs.jpg`: merged pull requests, one per issue (the `Closes #n` links are in the PR bodies, not shown in the image). |
 
 The one-command run (`docker compose up --build`, Compose and kind never run
 together) is described in the top-level [README](../../README.md); it was not
@@ -98,6 +104,9 @@ run for this demo.
   (Grafana and Tempo pods `0/1` Ready, requests timing out) while Explore was
   needed, so there is no shot of either jump. They are provisioned in
   `observability/grafana/provisioning/datasources/datasources.yaml`.
+- `make heal`'s `rollout status` step timed out at 120 s from VM load and the
+  command exited with an error; the worker was back at 1/1 about 2 minutes
+  later.
 - The stale `JobsStalled` instance for prod and a backlog on dev made the
   alerts page less clean than a fresh stack would be, and the dev
   `QueueWaitHigh` did not resolve within the recording.

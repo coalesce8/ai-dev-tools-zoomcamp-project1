@@ -30,6 +30,12 @@ What it is not, honestly:
 - It is not a real screen recording (browser captures at key moments, captions
   added), and there is no public URL: the VM is not reachable from the
   internet. A real recording and a URL are still an owner step.
+- The incident part is not a clean start: `QueueWaitHigh` was already firing
+  at the start (a backlog from requeueing 22 old stalled jobs as setup) and had
+  not resolved at the end; the alerts page also shows a stale prod
+  `JobsStalled` instance.
+- Grafana's Tempo "Related logs" and Loki "View trace" jumps are not
+  captured (Grafana and Tempo were unresponsive under VM load).
 
 Quick links: [Demo](#demo) | [Problem](#problem) |
 [Functionality](#what-it-does-and-how-it-behaves) |
