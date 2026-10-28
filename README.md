@@ -4,12 +4,34 @@ A small job run tracker with an on-call agent. Project 1 of AI Dev Tools
 Zoomcamp 2026, built by coding agents from a public tracker and run at no
 cost on one local VM.
 
-**Demo: pending (owner step).** The recorded demo and a public URL do not
-exist yet. The deployment is shown through the recording because the VM is not
-reachable from the internet; until it is linked here, use the "Project
-criteria checklist" below to see what is done and what is not.
+## Demo
 
-Quick links: [Problem](#problem) |
+Recorded on the local kind dev stack (`http://dev.localhost`, 2026-10-28):
+two short GIFs, about 14 s and 16 s, with screenshots in
+[`docs/demo/`](docs/demo/README.md), which tells the story in order with a
+caption per shot.
+
+![Job lifecycle: submit, run, succeed](docs/demo/01-job-lifecycle.gif)
+
+![Incident: alert pending, firing, agent report, recovery](docs/demo/02-incident-alert-to-recovery.gif)
+
+What it shows: a job submitted in the UI running to SUCCEEDED with live logs;
+Grafana; `make break-worker`, the `JobsStalled` alert going pending then firing,
+the agent's incident report, then `make heal` and the alert clearing; and the
+GitHub CI and CD runs with the `prod` approval gate and a rollback dispatch.
+
+What it is not, honestly:
+
+- The responder agent ran **without a model**: its reports end
+  `skipped_no_model` and **no agent fixed anything**; the fault was cleared by
+  hand.
+- The `prod` environment is shown only through the GitHub approval gate; prod
+  was scaled to 0 and is not in the GIFs.
+- It is not a real screen recording (browser captures at key moments, captions
+  added), and there is no public URL: the VM is not reachable from the
+  internet. A real recording and a URL are still an owner step.
+
+Quick links: [Demo](#demo) | [Problem](#problem) |
 [Functionality](#what-it-does-and-how-it-behaves) |
 [Architecture](#architecture) | [Run locally](#run-it-locally-one-command) |
 [Tests](#tests-one-command) | [Containers](#containerization) |
@@ -386,7 +408,8 @@ change as work continues.
   routed through the ingress.
 - The VM is not reachable from the internet; one kind node; no database
   migration rollback.
-- Not done yet: the demo recording and public URL, and the
+- Not done yet: a real screen recording and public URL (a GIF demo on the
+  local stack exists, [`docs/demo/`](docs/demo/README.md)), and the
   live-model drill (AC-21, AC-22; owner-only). The no-model drills and their
   `skipped_no_model` incident reports are done
   ([`incidents/README.md`](incidents/README.md)); the browser-only checks were
@@ -406,7 +429,7 @@ The 12 criteria of the course ([`_docs/old/PROJECT.md`](_docs/old/PROJECT.md),
 | 5 | Application | [`app/`](app/), [`frontend/`](frontend/); `docker compose up --build` | Done |
 | 6 | Testing | [Tests](#tests-one-command): unit, frontend and integration with `make test` | Done |
 | 7 | Containerization | [`compose.yaml`](compose.yaml), [`Dockerfile`](Dockerfile) | Done |
-| 8 | Deployment | [Kubernetes](#kubernetes-kind-dev-and-prod), [`deploy.md`](docs/runbooks/deploy.md); deployed to a local kind cluster, no public URL | Partial: dev and prod deployed by CD to kind and checked (run 40669522952); **no public URL, demo recording pending (owner step)** |
+| 8 | Deployment | [Kubernetes](#kubernetes-kind-dev-and-prod), [`deploy.md`](docs/runbooks/deploy.md); deployed to a local kind cluster, no public URL | Partial: dev and prod deployed by CD to kind and checked (run 40669522952); **no public URL; a GIF demo of the local dev stack exists ([`docs/demo/`](docs/demo/README.md)), a real recording is an owner step** |
 | 9 | CI/CD | [CI/CD](#cicd), [`ci.yaml`](.github/workflows/ci.yaml), [`cd.yaml`](.github/workflows/cd.yaml), [`rollback.md`](docs/runbooks/rollback.md) | CI in use; CD in use: a push to `main` ran CI, build, deploy-dev and, after approval, deploy-prod on the self-hosted runner (run 40669522952). rollback path 2 (dispatch redeploy of an earlier SHA, run 40687761011) and the non-`main` dispatch guard (run 40688360178) exercised |
 | 10 | Observability | [Observability](#observability), [`observability/`](observability/) | Done (traces, metrics and logs share a trace id; viewable in Grafana) |
 | 11 | Alerting on user impact | [Alerting](#alerting-on-user-impact), [`runwatch.yaml`](observability/rules/runwatch.yaml) | Done (four rules, promtool-tested); alert timings measured live without a model ([`docs/live-checks.md`](docs/live-checks.md)); live-model drill is owner-only |
