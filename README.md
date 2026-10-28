@@ -228,14 +228,19 @@ Honest status:
   Deployments run `ghcr.io/coalesce8/runwatch-{app,frontend}:9fcb0223...`, the
   rollout history says `deploy 9fcb022 by 40669522952`, and
   `http://dev.localhost/` and `http://prod.localhost/` answer 200. Times and
-  details: "First CD run" in [`deploy.md`](docs/runbooks/deploy.md). Not yet
-  shown: a dispatch with `environment=dev` and an earlier `sha`, and a
-  dispatch from a branch other than `main` (both deploy jobs skipped).
+  details: "First CD run" in [`deploy.md`](docs/runbooks/deploy.md). Dispatches
+  (2026-10-28): `environment=dev` with the earlier `sha` `9fcb022`
+  ([run 40687761011](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40687761011), dev redeployed, change-cause `deploy
+  9fcb022 by 40687761011`), a roll-forward to head
+  ([run 40688061459](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40688061459)), and a dispatch from a branch other
+  than `main` with both deploy jobs skipped
+  ([run 40688360178](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40688360178)).
 - One rollback was exercised live, without a model: path 1,
   `make rollback ENV=dev DEPLOY=worker` on the kind cluster, 2026-10-28, see
   "Exercised rollbacks" in the runbook and
-  [`docs/live-checks.md`](docs/live-checks.md). The agent's own undo and the
-  CD redeploy of a previous SHA (path 2) are not yet exercised (owner steps,
+  [`docs/live-checks.md`](docs/live-checks.md). Path 2 (CD redeploy of a
+  previous SHA) was exercised too, see above. The agent's own undo is not yet
+  exercised (live model, owner step,
   [`incidents/README.md`](incidents/README.md)).
 
 ## Observability
@@ -381,7 +386,7 @@ change as work continues.
   routed through the ingress.
 - The VM is not reachable from the internet; one kind node; no database
   migration rollback.
-- Not done yet: the demo recording and public URL, the first CD run, and the
+- Not done yet: the demo recording and public URL, and the
   live-model drill (AC-21, AC-22; owner-only). The no-model drills and their
   `skipped_no_model` incident reports are done
   ([`incidents/README.md`](incidents/README.md)); the browser-only checks were
@@ -402,7 +407,7 @@ The 12 criteria of the course ([`_docs/old/PROJECT.md`](_docs/old/PROJECT.md),
 | 6 | Testing | [Tests](#tests-one-command): unit, frontend and integration with `make test` | Done |
 | 7 | Containerization | [`compose.yaml`](compose.yaml), [`Dockerfile`](Dockerfile) | Done |
 | 8 | Deployment | [Kubernetes](#kubernetes-kind-dev-and-prod), [`deploy.md`](docs/runbooks/deploy.md); deployed to a local kind cluster, no public URL | Partial: dev and prod deployed by CD to kind and checked (run 40669522952); **no public URL, demo recording pending (owner step)** |
-| 9 | CI/CD | [CI/CD](#cicd), [`ci.yaml`](.github/workflows/ci.yaml), [`cd.yaml`](.github/workflows/cd.yaml), [`rollback.md`](docs/runbooks/rollback.md) | CI in use; CD in use: a push to `main` ran CI, build, deploy-dev and, after approval, deploy-prod on the self-hosted runner (run 40669522952). **Not yet exercised: rollback path 2 (dispatch redeploy of an earlier SHA) and the non-`main` dispatch guard** |
+| 9 | CI/CD | [CI/CD](#cicd), [`ci.yaml`](.github/workflows/ci.yaml), [`cd.yaml`](.github/workflows/cd.yaml), [`rollback.md`](docs/runbooks/rollback.md) | CI in use; CD in use: a push to `main` ran CI, build, deploy-dev and, after approval, deploy-prod on the self-hosted runner (run 40669522952). rollback path 2 (dispatch redeploy of an earlier SHA, run 40687761011) and the non-`main` dispatch guard (run 40688360178) exercised |
 | 10 | Observability | [Observability](#observability), [`observability/`](observability/) | Done (traces, metrics and logs share a trace id; viewable in Grafana) |
 | 11 | Alerting on user impact | [Alerting](#alerting-on-user-impact), [`runwatch.yaml`](observability/rules/runwatch.yaml) | Done (four rules, promtool-tested); alert timings measured live without a model ([`docs/live-checks.md`](docs/live-checks.md)); live-model drill is owner-only |
 | 12 | On-call agent | [Responder agent](#responder-agent), [`app/runwatch/agent/`](app/runwatch/agent/) | Implemented and tested with fake model clients; **no live-model run, no real incident fixed**: owner step |

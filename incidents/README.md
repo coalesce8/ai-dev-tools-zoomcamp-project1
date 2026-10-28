@@ -79,12 +79,13 @@ discretion.
    without a key), and a dev fault leaves prod's
    `runwatch_attempts_finished_total{cause="infra"}` increase at 0. No cost
    beyond VM load.
-3. **CD-driven redeploy, rollback path 2 (AC-28).** Needs #73 (the owner's
-   self-hosted runner and the `dev`/`prod` environments): `gh workflow run` for
-   the CD workflow with `environment=dev` and an earlier SHA on `main` (inputs
-   per `.github/workflows/`); the run must succeed on the runner and `kubectl
-   rollout history` or the pod images must show that SHA's tag. Record the run
-   URL in "Exercised rollbacks". GitHub Actions on your account; no model.
+3. **CD-driven redeploy, rollback path 2 (AC-28): done for dev (2026-10-28).**
+   `gh workflow run CD --ref main -f environment=dev -f sha=<earlier 40-hex>`
+   succeeded on the runner ([run 40687761011](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40687761011)):
+   the dev pods ran that SHA's images and `rollout history` showed `deploy
+   9fcb022 by 40687761011`; see "Exercised rollbacks" in
+   `docs/runbooks/rollback.md`. A prod redeploy through CD is still
+   owner-only (item 2).
 4. **Timings only the live agent can produce**: time from alert to the agent's
    first write, time to resolve with the agent's fix, and the verification
    outcome. The no-model timings above are the baseline.
