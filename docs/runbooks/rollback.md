@@ -97,4 +97,12 @@ All act on `runwatch-dev`, take no `ENV`, and honour `DRY_RUN=1`.
 
 ## Exercised rollbacks
 
-None yet - #37 adds the links.
+- 2026-10-28, path 1: `make rollback ENV=dev DEPLOY=worker` undid the manual
+  `bad-release` revision of the worker in `runwatch-dev` on the kind cluster;
+  `JobFailureRateHigh` resolved 3 m 47 s after the command. Command output and
+  timings: row 10 of [../live-checks.md](../live-checks.md); incident:
+  [../../incidents/README.md](../../incidents/README.md).
+- The agent's own `k8s_rollout_undo`: not yet exercised with a live model, owner
+  step. See "Owner-only" in [../../incidents/README.md](../../incidents/README.md).
+- The redeploy of a previous SHA (path 2): not yet exercised through CD, owner
+  step. See "Owner-only" in [../../incidents/README.md](../../incidents/README.md).

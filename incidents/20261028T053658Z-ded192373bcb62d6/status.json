@@ -1,0 +1,11 @@
+{
+  "incident_id": "20261028T053658Z-ded192373bcb62d6",
+  "fingerprint": "ded192373bcb62d6",
+  "alertname": "JobFailureRateHigh",
+  "env": "dev",
+  "state": "finished",
+  "outcome": "skipped_no_model",
+  "started_at": "2026-10-28T05:36:58.473838+00:00",
+  "ended_at": "2026-10-28T05:36:58.478619+00:00",
+  "webhook_count": 2
+}
