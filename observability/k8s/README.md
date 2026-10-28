@@ -36,6 +36,6 @@ Nothing is routed from outside the cluster (Grafana allows anonymous Admin).
   8090, path `/webhook/alertmanager` (`k8s/alertmanager.yaml`). There is no
   `local` route and no `local` rule on kind.
 - Data lives in `emptyDir` volumes: telemetry is lost when a pod restarts.
-- Memory limits total 1088Mi (prometheus, tempo, loki, grafana 256Mi each,
-  alertmanager 64Mi); requests total 576Mi. The Go components set
+- Memory limits total 1344Mi (prometheus, tempo, loki 256Mi each, grafana
+  512Mi, alertmanager 64Mi); requests total 576Mi. The Go components set
   `GOMEMLIMIT` to about 80% of the limit.
