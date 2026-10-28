@@ -62,6 +62,12 @@ The node container is capped at 3 GB (`docker update --memory 3g
 is below 1500 MB: the VM has 5.3 GB and already swaps. It prints the
 number it saw and exits non-zero.
 
+Limits are a ceiling, not a reservation. The sum of limits is 1408Mi
+(observability) + 2 x 1072Mi (dev and prod) = 3552Mi, above the 3072Mi
+node cap (it was 3040Mi before the collector went from 96Mi to 320Mi
+and Tempo from 256Mi to 320Mi, #104). What counts is measured usage: the node stays under 2.6 GiB
+(`docker stats --no-stream runwatch-control-plane`).
+
 ## Compose and kind never run together
 
 Stop Compose first with `docker compose stop` (never `down`, never `-v`).

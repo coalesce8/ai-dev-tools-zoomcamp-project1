@@ -43,12 +43,16 @@ spec:
             - name: otlp-http
               containerPort: 4318
           # DEPLOYMENT_ENV is set by each overlay.
+          env:
+            # About 80% of the 320Mi limit, so the Go GC works before the cgroup limit bites.
+            - name: GOMEMLIMIT
+              value: 256MiB
           resources:
             requests:
               cpu: 50m
               memory: 48Mi
             limits:
-              memory: 96Mi
+              memory: 320Mi
           volumeMounts:
             - name: config
               mountPath: /etc/otelcol
