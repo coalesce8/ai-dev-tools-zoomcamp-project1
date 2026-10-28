@@ -88,3 +88,4 @@ names, so point it at your own database only.
 - `_docs/team/` - the PM, software engineer and QA roles
 - `_docs/task-template.md` - the format of a groomed issue
 - `docs/runbooks/` - operational runbooks (rollback, deploy, self-hosted runner)
+- `README.md` - what Runwatch is, how to run and test it, and the course criteria checklist
