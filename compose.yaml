@@ -204,7 +204,10 @@ services:
     image: otel/opentelemetry-collector-contrib:0.161.0
     command: ["--config=/etc/otelcol/config.yaml"]
     restart: unless-stopped
-    mem_limit: 128m
+    # 256m, not 128m: at 128m the collector re-reads its own binary from disk
+    # all the time (cgroup memory.current at the limit, 30 GB/min block reads,
+    # exports to Loki and Prometheus timing out). See #102.
+    mem_limit: 256m
     environment:
       DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
     volumes:
@@ -220,10 +223,14 @@ services:
   grafana:
     image: grafana/grafana:13.2.3
     restart: unless-stopped
-    mem_limit: 256m
+    # 512m, not 256m: below this Grafana thrashes its page cache (swap-in,
+    # huge block IO, 503s for tens of minutes); 384Mi still thrashed on kind.
+    # See #99/#100 and #102. GOMEMLIMIT matches observability/k8s/grafana.yaml.
+    mem_limit: 512m
     ports:
       - "${OBSERVABILITY_BIND:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
     environment:
+      GOMEMLIMIT: 400MiB
       # Anonymous access as Admin with no login form. Acceptable only because
       # the port binds to 127.0.0.1 by default (OBSERVABILITY_BIND).
       GF_AUTH_ANONYMOUS_ENABLED: "true"
