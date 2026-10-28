@@ -4,7 +4,7 @@ Run on 2026-10-28 (all times UTC; `uptime` prints local time, one hour ahead)
 by the engineer of #37, against the kind cluster `runwatch`, namespace
 `runwatch-dev` plus `runwatch-observability`, with images built locally from
 `main` at `aa3de8f6feef8dcccd6149f638fe044f81856ad3` and deployed with
-`SKIP_PULL=1 make deploy ENV=dev` (change-cause "deploy aa3de8f by manual").
+`SKIP_PULL=1 make deploy ENV=dev` (the deploy script annotates the change-cause "deploy aa3de8f by manual"; that line is not visible in the pasted history because `make heal` later overwrote the revision's cause, see Deviations).
 
 **No model, no cost.** No `ANTHROPIC_API_KEY` was set, read or requested. The
 Secret `agent` in `runwatch-dev` has only the key `webhook-token`
@@ -26,7 +26,7 @@ kind-runwatch`. `~/.kube/config` was not used (sha256 unchanged).
 
 Load average (1 min) was recorded with `uptime`: 1.84 before `make kind-up`,
 24.15 right after it (cluster start), 13.5 after the deploy, 3 to 6 at rest
-with Grafana stopped, 8 to 11 during the drills (see each row), 16.9 at the end
+with Grafana stopped, 2 to 4 during AC-20 and drill 1 take 1, 8 to 11 during drill 1 take 2 and drill 2 (see each row), 16.9 at the end
 (05:57Z, Grafana and Tempo restarting) and 12.4 after `make kind-down`.
 
 ## Deviations and findings
@@ -41,14 +41,14 @@ with Grafana stopped, 8 to 11 during the drills (see each row), 16.9 at the end
   deploy/otel-collector --limits=memory=256Mi` in the live cluster only. A repo
   fix (`k8s/base/otel-collector.yaml`, `k8s/README.md`) would also have to change
   the budget assertion `total == 848` in `tests/unit/test_k8s_manifests.py`,
-  which this issue may not touch, so none is committed. A new `make deploy`
+  which this issue may not touch, so none is committed. Follow-up: issue #104. A new `make deploy`
   resets the live limit to 96Mi and brings the problem back.
 - **`/api/v1/jobs/requeue-failed` does not exist.** The issue and the runbook
   name it, but `requeue-failed` and `requeue-stalled` are internal endpoints
   (`/internal/v1/jobs/...`, 404 through the ingress by design). Stalled jobs were
   requeued with the public `POST /api/v1/jobs/{id}/requeue`; the infra-failed
   jobs with `POST /internal/v1/jobs/requeue-failed` through `kubectl
-  port-forward svc/api`.
+  port-forward svc/api` (the only way to reach it).
 - **`make break-worker` stalls a job only if one is running.** The worker is
   stopped by SIGTERM; with no job running nothing becomes `STALLED` and
   `JobsStalled` never fires. Take 1 hit an idle worker (only `QueueWaitHigh`
@@ -60,8 +60,11 @@ with Grafana stopped, 8 to 11 during the drills (see each row), 16.9 at the end
   Deployment before the pod template changes, so `rollout history` shows the
   previous revision under the new cause (revision 3 read "bad-release drill"
   although it was the good template). Cosmetic; not fixed here.
-- Grafana was scaled to 0 from 04:26 to 05:46 (its first start took about 5
-  minutes of 15+ load) and back to 1 at the end. A leftover Completed pod
+- Grafana (times from my notes, minute accuracy, partly converted from local
+  `uptime` time): scaled to 0 at about 04:19Z while the collector was diagnosed,
+  scaled to 1 at 04:23Z (it took until about 04:32Z to become Ready, load 15+),
+  queried at 04:32:19Z (row 3b), scaled to 0 again at about 04:33Z, and back to 1
+  at 05:46Z (Ready at about 05:55Z). So it was stopped during all the drills. A leftover Completed pod
   `wt37-curl` (busybox, `true`) in `runwatch-dev` was created by mistake; it
   needs `kubectl delete pod wt37-curl -n runwatch-dev` by the owner (agents delete
   nothing).
@@ -73,15 +76,15 @@ with Grafana stopped, 8 to 11 during the drills (see each row), 16.9 at the end
 | 1 | Pods Ready, ingress | `kubectl get pods` in `runwatch-dev` and `runwatch-observability`; `curl --resolve dev.localhost:80:127.0.0.1 http://dev.localhost/`, `/api/v1/stats`, `/internal/v1/jobs/requeue-failed` | all `1/1 Running` at 04:14Z (Grafana later: row 3); `/` 200 `text/html`; stats 200 JSON; internal path 404 | 6.80 | PASS |
 | 2 | Prometheus series and rules (AC-17) | `localhost:9090/api/v1/query` per metric with `{env="dev"}`; `/api/v1/rules` | one series each for `runwatch_jobs_submitted_total`, `_jobs_finished_total`, `_attempts_finished_total`, `_queue_depth`, `_oldest_queued_age_seconds`, `_jobs_stalled`, `_queue_wait_seconds_*`, `_job_run_seconds_*`; no `_total_total` or `_seconds_seconds` name; `RunwatchApiDown` rule with `env="dev"` and `env="prod"`; 04:22Z, after the collector fix | 5.25 | PASS |
 | 3 | AC-16 by HTTP | job `d29837ca-3adf-4213-b7d4-6fa6edac3abb` (duration 3) via the ingress; Tempo `localhost:3200/api/search?q={ span.job.id = "<id>" }` and `/api/traces/<id>`; Loki `query_range` | submit trace `cbe0c5800448d76adba7ff46f525e527` (`POST /api/v1/jobs`, `submit`, `claim`); attempt trace `8b12d9046e54fd51ff9da4eab8be6d77` (`attempt`, `run`, `result`, heartbeats) whose `attempt` span carries a link to `cbe0c580.../4ba49f705950714e`; LogQL `{service_name="runwatch-worker"} \| job_id="<id>"` 2 lines, `{service_name=~"runwatch-.*"} \| trace_id="8b12d904..."` 9 lines, `{service_name="runwatch-api"} \| job_id="<id>"` 6 lines | 5 | PASS |
-| 3b | Dashboard exists (AC-17) | Grafana `localhost:3000/api/search?query=` (port-forward) | folder "Runwatch" and dashboard "Runwatch" (uid `runwatch`) at 04:32Z; Grafana 13.2.3 `database: ok` | 15 | PASS |
-| 3c | Grafana panels look | browser | not opened: Grafana was stopped during the drills to relieve the VM | | NEEDS USER |
+| 3b | Dashboard exists (AC-17) | Grafana `localhost:3000/api/search?query=` (port-forward) | folder "Runwatch" and dashboard "Runwatch" (uid `runwatch`) at 04:32:19Z; Grafana 13.2.3 `database: ok` | 15 | PASS |
+| 3c | Grafana panels look | browser | not opened: Grafana was scaled to 0 again at about 04:33Z, before the drills, to relieve the VM | | NEEDS USER |
 | 4 | Alertmanager routing to the dev agent | `POST localhost:9093/api/v2/alerts` `RoutingSmoke` `env=dev` at 04:36:22Z; `GET /incidents`, `GET /incidents/<id>` via port-forward `svc/agent`; `POST /webhook/alertmanager` without a token | agent answered; incident `20261028T043637Z-74793167eb945180` created 04:36:37Z (15 s), outcome `skipped_no_model`, report renders; no token gives 401 | 5.5 | PASS |
 | 5 | AC-20 | 10 `always_fail` jobs (`duration_s` 1) at 04:37:30Z; Prometheus `/api/v1/alerts` and rule state every 30 s to 04:45:04Z (17 polls, load 1.9 to 4.2) | all 10 `FAILED` (3 attempts each); no dev alert pending or firing in any poll; `JobFailureRateHigh` rule `inactive` throughout | 2 to 4 | PASS |
 | 6 | Drill 1, take 1, `make break-worker` at 04:47:31Z (idle worker) | monitor every 10 s | `QueueWaitHigh` activeAt 04:49:43Z, `firing` 04:50:43Z (3 m 12 s after the command; seen at the 04:50:52 poll); `JobsStalled` never fired (no running job, see deviations); incident `20261028T045058Z-70d96fc8d310e3d7` (webhook 04:50:58Z, 202); `make heal` at 04:51:05Z; resolved webhook 04:53:28Z (2 m 23 s after heal, queue was short) | 2.3 | PASS for `QueueWaitHigh`; `JobsStalled` NOT shown |
 | 7 | Drill 1, take 2, `make break-worker` at 04:55:35Z with a 150 s job RUNNING | monitor every 10 s | `JobsStalled` activeAt 04:56:13Z, `firing` 04:57:13Z (1 m 38 s after the command); `QueueWaitHigh` activeAt 04:57:28Z, `firing` 04:58:28Z (2 m 53 s). Agent: `JobsStalled` incident `20261028T045728Z-b497628b3c90a3ca` (04:57:28Z, outcome `skipped_no_model`); the `QueueWaitHigh` firing at 04:58:43Z was recorded in the existing incident `...045058Z-70d9...` as `recorded_cooldown` (same fingerprint, still in cooldown), no new directory | 8.0 to 10.8 | PASS (AC-19) |
 | 8 | Drill 1 recovery | `make heal` at 05:12:21Z (done 05:12:30Z); `POST /api/v1/jobs/<id>/requeue` for the one `STALLED` job (200 at 05:12:30Z) | `JobsStalled` resolved webhook 05:12:58Z (37 s after heal start). Queue then stayed at 32 to 40 with one worker; scaled the worker to 2 (05:27:22Z), queue 0 at 05:32:24Z, back to 1 at 05:32:31Z, no dev alert; `QueueWaitHigh` resolved webhook 05:31:43Z (19 m 22 s after heal start). `/api/v1/stats` showed `STALLED` 0 | 9 to 10.5 | PASS (with the extra worker) |
 | 9 | Drill 2, `make bad-release` at 05:32:58Z | monitor every 10 s | `JobFailureRateHigh` activeAt 05:35:43Z, `firing` 05:36:43Z (3 m 45 s, AC-19 within 5 min); incident `20261028T053658Z-ded192373bcb62d6` at 05:36:58Z, outcome `skipped_no_model`; state kept | 11.6 | PASS |
-| 10 | Exercised rollback (AC-28 path 1) | `make rollback ENV=dev DEPLOY=worker` at 05:37:31Z (done 05:37:39Z), output below | history before: revisions 1, 2, 3, 4 (bad); after: 1, 2, 4, 5 (revision 3 re-created as 5); `WORKER_FAULT` no longer in the worker env (env names: `RUNWATCH_API_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`); `POST /internal/v1/jobs/requeue-failed` since 05:32:00Z until 05:37:50Z returned `{"requeued":14}`; jobs `SUCCEEDED` (stats at 05:42:09Z: `FAILED` 9, all from row 5); `JobFailureRateHigh` last seen firing 05:40:51Z, resolved webhook 05:41:18Z (3 m 47 s after the rollback command). The full six-Deployment `make rollback ENV=dev` was NOT run live (it would move api/frontend/agent to older SHAs); #36 covers it offline. A side effect of requeuing 14 jobs: `QueueWaitHigh` fired 05:39:58Z and resolved on its own (incident `20261028T054113Z-70d96fc8d310e3d7`) | 8.4 to 10.6 | PASS |
+| 10 | Exercised rollback (AC-28 path 1) | `make rollback ENV=dev DEPLOY=worker` at 05:37:31Z (done 05:37:39Z), output below | history before: revisions 1, 2, 3, 4 (bad); after: 1, 2, 4, 5 (revision 3 re-created as 5); `WORKER_FAULT` no longer in the worker env (env names: `RUNWATCH_API_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`); `POST /internal/v1/jobs/requeue-failed` since 05:32:00Z until 05:37:50Z returned `{"requeued":14}`; per-job states of the 14 were not recorded; the stats at 05:42:09Z showed `FAILED` 9 (all from row 5, none new), 4 `QUEUED`, no `STALLED`, and the new jobs at 05:45Z (UI check, row 15) `SUCCEEDED`; `JobFailureRateHigh` last seen firing 05:40:51Z, resolved webhook 05:41:18Z (3 m 47 s after the rollback command). The full six-Deployment `make rollback ENV=dev` was NOT run live (it would move api/frontend/agent to older SHAs); #36 covers it offline. A side effect of requeuing 14 jobs: `QueueWaitHigh` fired 05:39:58Z and resolved on its own (incident `20261028T054113Z-70d96fc8d310e3d7`) | 8.4 to 10.6 | PASS |
 | 11 | `make heal` after drill 2 | `make heal` at 05:42:09Z | worker 1/1, no `WORKER_FAULT`, all six Deployments ready, no dev alert | 11.2 | PASS |
 | 12 | AC-25 as far as no-model shows it | `webhooks.jsonl` of the incidents (`kubectl exec deploy/agent -- cat`) | repeated webhook inside the cooldown: `QueueWaitHigh` incident `...045058Z-70d9...` lists `{"kind": "firing", "disposition": "recorded_cooldown"}` at 04:58:43Z and no new directory was created for it. Alertmanager's `repeat_interval` (10 m) equals the agent's cooldown, so the resends at 05:07:58Z (`JobsStalled`) and 05:09:13Z (`QueueWaitHigh`) fell outside it and started new incidents (`...050758Z-b497...`, `...050913Z-70d9...`) by design. A repeat for a run still in progress needs a run that takes time, i.e. a live model | | PASS (cooldown path); in-progress path NEEDS OWNER |
 | 13 | Frontend shell and API lifecycle via `curl` | `GET /`; assets; `POST /api/v1/jobs` (job `3e84a392-8256-4fe4-9597-1d5ff8c77711`, duration 6); `/logs?after=` | `/` 200 `text/html`; `/assets/index-DTbJHRpu.js` 200 `application/javascript`, `/assets/index-RZB2mTII.css` 200 `text/css`; job listed in `GET /api/v1/jobs`; QUEUED 04:37:17Z, RUNNING 04:37:39Z, SUCCEEDED 04:37:45Z; logs seq `[1]`, `[2,3]`, `[4,5]`, `[6]` | 4.5 | PASS |

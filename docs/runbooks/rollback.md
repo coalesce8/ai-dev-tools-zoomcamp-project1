@@ -93,7 +93,10 @@ All act on `runwatch-dev`, take no `ENV`, and honour `DRY_RUN=1`.
 | `make heal` | clears `WORKER_FAULT`, scales the worker to 1, waits for rollout | none; alerts clear on their own |
 
 `heal` is safe in any state. It does not requeue jobs: use the UI or
-`POST /api/v1/jobs/requeue-failed`.
+`POST /internal/v1/jobs/requeue-failed` with `{"since", "until"}`, which is
+not routed through the ingress (404 there): reach it with `kubectl port-forward
+svc/api -n runwatch-dev 18000:8000`. Stalled jobs can be requeued one by one
+with the public `POST /api/v1/jobs/{id}/requeue`.
 
 ## Exercised rollbacks
 
