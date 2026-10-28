@@ -146,9 +146,46 @@ deployment statuses); all times UTC.
   skipped. Fixed in #112 by adding `!cancelled()` to the condition (the
   `deploy-prod` condition already had it).
 
-Not yet exercised: a dispatch with `environment=dev` and the previous `sha`
-(rollback path 2), and a dispatch from a branch other than `main` (both
-deploy jobs must skip).
+Dispatch proof (2026-10-28, all times UTC, all from `main` unless noted).
+The VM had been restarted and was overloaded (load 12-48 on 4 CPUs): the owner
+scaled `tempo` and all `runwatch-prod` workloads to 0 replicas for the proof
+(load reasons only; prod was not deployed to and its image tags did not
+change). Push run [40683385525](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40683385525) (`9792b02`) is therefore not
+evidence: `ci` and `build` passed, but `deploy-dev` (12:05:19 to 12:15:37)
+failed with `deployment/api did not roll out in time` because the single
+kind control plane (kube-controller-manager, kube-scheduler) was in
+CrashLoopBackOff under that load, and `deploy-prod` was skipped. After the
+load fell (1.9 at 12:25):
+
+1. Rollback path 2, run [40687761011](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40687761011), dispatched 12:26:03 with
+   `environment=dev` and `sha=9fcb0223068eee855861e3077981209b089c0163`:
+   `ci` skipped, `build` 12:26:06 to 12:26:24 (success; it found both
+   images, so nothing was built), `deploy-dev` 12:26:26 to 12:27:23 (success,
+   57 s), `deploy-prod` skipped. Afterwards the dev Deployments `agent`,
+   `api`, `loadgen`, `worker` ran `runwatch-app:9fcb0223...` and `frontend`
+   ran `runwatch-frontend:9fcb0223...` (before: `:9792b022...`);
+   `rollout history deployment/api` newest revision 9: `deploy 9fcb022 by
+   40687761011`; `http://dev.localhost/` returned 200.
+2. Roll forward, run [40688061459](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40688061459), dispatched 12:28:17 with
+   `environment=dev` and an empty `sha`: `ci` skipped, `build` 12:28:20 to
+   12:28:38 (success; with an empty `sha` it rebuilds and pushes the head's
+   images, as described above), `deploy-dev` 12:28:41 to 12:29:42 (success),
+   `deploy-prod` skipped. Dev ends on `:9792b022...` (main's head), revision 10:
+   `deploy 9792b02 by 40688061459`, `http://dev.localhost/` 200.
+3. Non-`main` dispatch, run [40688360178](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40688360178), branch
+   `issue-35-live-proof` (HEAD equal to `main`'s `9792b02`), dispatched
+   12:30:27 with `environment=dev` and `sha=9792b022f83af5ab3e0b2621731e58cc19a4cc6f`:
+   `ci` skipped, `build` 12:30:30 to 12:30:40 success (both images existed,
+   so "Build and push" was skipped), `deploy-dev` and `deploy-prod` both
+   skipped by the `refs/heads/main` guard. Nothing was deployed.
+- Prod during all three dispatches: Deployments `agent`, `api`, `loadgen`,
+  `worker` on `runwatch-app:9fcb0223...`, `frontend` on
+  `runwatch-frontend:9fcb0223...`, identical before and after (the dev
+  dispatches never touch prod); scaled to 0 by the owner as said above.
+- Side effect to know: `deploy-dev` applies `observability/`, whose manifests
+  say `replicas: 1`, so it scaled `tempo` back to 1 during the first dispatch.
+- `gh run list --workflow CD --event pull_request` is empty. The `~/.kube/config`
+  checksum was unchanged throughout.
 
 ## After a rollback: the next merge deploys the committed state
 

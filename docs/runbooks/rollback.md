@@ -107,5 +107,11 @@ with the public `POST /api/v1/jobs/{id}/requeue`.
   [../../incidents/README.md](../../incidents/README.md).
 - The agent's own `k8s_rollout_undo`: not yet exercised with a live model, owner
   step. See "Owner-only" in [../../incidents/README.md](../../incidents/README.md).
-- The redeploy of a previous SHA (path 2): not yet exercised through CD, owner
-  step. See "Owner-only" in [../../incidents/README.md](../../incidents/README.md).
+- 2026-10-28, path 2: CD dispatch `environment=dev`, `sha=9fcb0223...` (run
+  [40687761011](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40687761011), `deploy-dev` 57 s) moved the dev Deployments
+  from `:9792b022...` to `:9fcb0223...`, change-cause `deploy 9fcb022 by
+  40687761011`, dev answered 200, prod untouched; a second dispatch with an
+  empty `sha` (run [40688061459](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40688061459)) rolled dev forward to
+  `main`'s head. A dispatch from a non-`main` branch skipped both deploy jobs
+  (run [40688360178](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/actions/runs/40688360178)). Details and times: "First CD run" in
+  [deploy.md](deploy.md).
