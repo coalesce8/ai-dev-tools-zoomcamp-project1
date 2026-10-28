@@ -89,7 +89,7 @@ flowchart LR
   AM -->|webhook + bearer token| AG
   AG -->|tools| API
   AG -->|read| LO
-  AG -.->|kubectl-style rollout, scale; kind only| K8S[Kubernetes API]
+  AG -.->|rollout and scale, kind only| K8S[Kubernetes API]
 ```
 
 | Component | Tech | Code / config |
