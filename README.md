@@ -229,9 +229,12 @@ Honest status:
   ([issue #73](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/issues/73),
   [`self-hosted-runner.md`](docs/runbooks/self-hosted-runner.md)). The prod
   manual-approval path is therefore described, not yet demonstrated.
-- The "Exercised rollbacks" section of the runbook is still empty; the first
-  live rollback is planned in
-  [issue #37](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/issues/37).
+- One rollback was exercised live, without a model: path 1,
+  `make rollback ENV=dev DEPLOY=worker` on the kind cluster, 2026-10-28, see
+  "Exercised rollbacks" in the runbook and
+  [`docs/live-checks.md`](docs/live-checks.md). The agent's own undo and the
+  CD redeploy of a previous SHA (path 2) are not yet exercised (owner steps,
+  [`incidents/README.md`](incidents/README.md)).
 
 ## Observability
 
@@ -279,8 +282,12 @@ by `env` to the matching agent webhook. Failures a user causes on purpose
 (AC-20). The default load generator rate (one 10 s job per 20 s) keeps one
 worker at about half load so no alert fires on its own; the capacity
 measurements are in [PR #97](https://github.com/coalesce8/ai-dev-tools-zoomcamp-project1/pull/97).
-The live alert timings of the two drills (AC-19) are not measured yet; that is
-part of issue #37.
+The alert timings of the two drills (AC-19) were measured live on the kind
+cluster, dev only, without a model (agent not acting, one drill take each;
+take 1 of the worker drill hit an idle worker): `JobsStalled` firing after
+1 m 38 s, `QueueWaitHigh` 2 m 53 s, `JobFailureRateHigh` 3 m 45 s, and AC-20
+passed. See [`docs/live-checks.md`](docs/live-checks.md) and
+[`incidents/README.md`](incidents/README.md).
 
 ## Responder agent
 
@@ -324,7 +331,10 @@ every run ends `skipped_no_model` and still writes a report. The agent has
 **not** diagnosed or fixed a real incident. Running the two drills with a live
 model (`make break-worker`, `make bad-release`, `make heal`; AC-21 and AC-22)
 is an owner-run step that has not been run, so this part of the on-call agent
-criterion is implemented but not demonstrated.
+criterion is implemented but not demonstrated. What was run, without a model:
+the alerts, their delivery to the agent (`skipped_no_model` reports) and the
+manual recovery; see [`docs/live-checks.md`](docs/live-checks.md) and
+[`incidents/README.md`](incidents/README.md).
 
 ## AI-assisted process
 
@@ -369,8 +379,11 @@ change as work continues.
   routed through the ingress.
 - The VM is not reachable from the internet; one kind node; no database
   migration rollback.
-- Not done yet: the demo recording and public URL, the first CD run, the live
-  drills and their incident reports (see the checklist).
+- Not done yet: the demo recording and public URL, the first CD run, and the
+  live-model drill (AC-21, AC-22; owner-only). The no-model drills and their
+  `skipped_no_model` incident reports are done
+  ([`incidents/README.md`](incidents/README.md)); a few browser-only checks
+  remain open in [`docs/live-checks.md`](docs/live-checks.md).
 
 ## Project criteria checklist
 
@@ -389,5 +402,5 @@ The 12 criteria of the course ([`_docs/old/PROJECT.md`](_docs/old/PROJECT.md),
 | 8 | Deployment | [Kubernetes](#kubernetes-kind-dev-and-prod), [`deploy.md`](docs/runbooks/deploy.md); deployed to a local kind cluster, no public URL | Partial: steps and manifests done and checked on kind by hand; **demo recording pending (owner step)** |
 | 9 | CI/CD | [CI/CD](#cicd), [`ci.yaml`](.github/workflows/ci.yaml), [`cd.yaml`](.github/workflows/cd.yaml), [`rollback.md`](docs/runbooks/rollback.md) | CI in use; CD to dev with manual-approval prod written and tested; CI and image build run on every merge, **deploy jobs not yet run (needs self-hosted runner, #73)** |
 | 10 | Observability | [Observability](#observability), [`observability/`](observability/) | Done (traces, metrics and logs share a trace id; viewable in Grafana) |
-| 11 | Alerting on user impact | [Alerting](#alerting-on-user-impact), [`runwatch.yaml`](observability/rules/runwatch.yaml) | Done (four rules, promtool-tested); live drill timings pending (#37) |
+| 11 | Alerting on user impact | [Alerting](#alerting-on-user-impact), [`runwatch.yaml`](observability/rules/runwatch.yaml) | Done (four rules, promtool-tested); alert timings measured live without a model ([`docs/live-checks.md`](docs/live-checks.md)); live-model drill is owner-only |
 | 12 | On-call agent | [Responder agent](#responder-agent), [`app/runwatch/agent/`](app/runwatch/agent/) | Implemented and tested with fake model clients; **no live-model run, no real incident fixed**: owner step |

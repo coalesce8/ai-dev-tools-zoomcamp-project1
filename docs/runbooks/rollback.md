@@ -93,8 +93,19 @@ All act on `runwatch-dev`, take no `ENV`, and honour `DRY_RUN=1`.
 | `make heal` | clears `WORKER_FAULT`, scales the worker to 1, waits for rollout | none; alerts clear on their own |
 
 `heal` is safe in any state. It does not requeue jobs: use the UI or
-`POST /api/v1/jobs/requeue-failed`.
+`POST /internal/v1/jobs/requeue-failed` with `{"since", "until"}`, which is
+not routed through the ingress (404 there): reach it with `kubectl port-forward
+svc/api -n runwatch-dev 18000:8000`. Stalled jobs can be requeued one by one
+with the public `POST /api/v1/jobs/{id}/requeue`.
 
 ## Exercised rollbacks
 
-None yet - #37 adds the links.
+- 2026-10-28, path 1: `make rollback ENV=dev DEPLOY=worker` undid the manual
+  `bad-release` revision of the worker in `runwatch-dev` on the kind cluster;
+  `JobFailureRateHigh` resolved 3 m 47 s after the command. Command output and
+  timings: row 10 of [../live-checks.md](../live-checks.md); incident:
+  [../../incidents/README.md](../../incidents/README.md).
+- The agent's own `k8s_rollout_undo`: not yet exercised with a live model, owner
+  step. See "Owner-only" in [../../incidents/README.md](../../incidents/README.md).
+- The redeploy of a previous SHA (path 2): not yet exercised through CD, owner
+  step. See "Owner-only" in [../../incidents/README.md](../../incidents/README.md).
