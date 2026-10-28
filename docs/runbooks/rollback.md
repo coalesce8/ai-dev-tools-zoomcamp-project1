@@ -34,16 +34,26 @@ kubectl --kubeconfig ~/.kube/runwatch-kind.config --context kind-runwatch -n run
 ## Path 2 - redeploy a previous SHA
 
 1. Find the last good SHA: the commit before the bad merge on `main`, or the
-   commit of the last green deploy run in the Actions tab.
-2. GitHub, Actions tab, workflow "CD" (the deploy workflow from #35), `Run workflow`.
-3. Inputs: `environment` (`dev` or `prod`) and `sha` (the image tag as pushed).
-   It deploys the already-pushed images without rebuilding and sets the
-   change-cause to "redeploy <sha>".
-4. For `prod`, approve the run in the `prod` environment.
+   commit of the last green deploy run in the Actions tab. Copy its full
+   40-character SHA.
+2. GitHub, Actions tab, workflow "CD" (the deploy workflow from #35), `Run
+   workflow`, from branch `main`. A dispatch from another branch deploys
+   nothing.
+3. Inputs: `environment` (`dev` or `prod`) and `sha`, the full 40-character
+   SHA of a commit on `main` (the run fails for any other commit; an empty
+   `sha` deploys the commit the run started on). If either of the two images
+   is missing in GHCR for that SHA, they are built first, so an old SHA whose
+   images are gone still works. The change-cause is set to
+   `deploy <first 7 of sha> by <run id>`.
+4. For `prod`, approve the run in the `prod` environment. A dispatch to
+   `prod` needs no earlier dev run, only that approval.
 
-NOTE: #35 had not merged when this was written; the names above follow the
-contract left on #35. Check them against `.github/workflows/` and fix this
-section if they differ.
+The old images are deployed with the CURRENT manifests and scripts of
+`main`'s head, not the old manifests. A manifest change is rolled back with a
+revert PR (see "After a rollback").
+
+The self-hosted runner must be online (#73, see
+[self-hosted-runner.md](self-hosted-runner.md)), otherwise the run queues.
 
 ## Which path to use
 
