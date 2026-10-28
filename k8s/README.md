@@ -42,6 +42,6 @@ Services #32 provides for others: `alertmanager` 9093, `grafana` 3000.
 | worker | 96Mi |
 | loadgen | 96Mi |
 | frontend | 48Mi |
-| otel-collector | 256Mi |
+| otel-collector | 320Mi |
 | agent | 128Mi |
-| Total | 1008Mi (ceiling 1024Mi) |
+| Total | 1072Mi (ceiling 1088Mi) |

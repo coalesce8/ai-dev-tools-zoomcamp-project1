@@ -21,7 +21,7 @@ spec:
           image: grafana/tempo:2.10.8
           args: ["-config.file=/etc/tempo/config.yaml"]
           env:
-            - {name: GOMEMLIMIT, value: 200MiB}
+            - {name: GOMEMLIMIT, value: 256MiB}
           ports:
             - {name: otlp-http, containerPort: 4318}
             - {name: http, containerPort: 3200}
@@ -35,7 +35,7 @@ spec:
             seccompProfile: {type: RuntimeDefault}
           resources:
             requests: {cpu: 50m, memory: 128Mi}
-            limits: {memory: 256Mi}
+            limits: {memory: 320Mi}
           volumeMounts:
             - {name: config, mountPath: /etc/tempo/config.yaml, subPath: tempo.yaml, readOnly: true}
             - {name: data, mountPath: /var/tempo}
