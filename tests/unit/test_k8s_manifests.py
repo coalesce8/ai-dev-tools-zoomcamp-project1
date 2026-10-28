@@ -24,7 +24,7 @@ LIMITS_MI = {
     "worker": 96,
     "loadgen": 96,
     "frontend": 48,
-    "otel-collector": 96,
+    "otel-collector": 256,
     "agent": 128,
 }
 HOST_PORT_8000 = ["--host", "0.0.0.0", "--port", "8000"]
@@ -194,8 +194,8 @@ def test_memory_and_security(env_docs):
                 assert sc["allowPrivilegeEscalation"] is False
                 assert sc["capabilities"]["drop"] == ["ALL"]
                 assert sc["seccompProfile"]["type"] == "RuntimeDefault"
-    assert total == 848
-    assert total <= 900
+    assert total == 1008
+    assert total <= 1024
 
 
 def env_of(container):

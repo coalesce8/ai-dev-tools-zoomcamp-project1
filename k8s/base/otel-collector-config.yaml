@@ -15,9 +15,9 @@ receivers:
 processors:
   memory_limiter:
     check_interval: 1s
-    # Below the 96Mi container limit (Compose has 128m), so the limiter acts before an OOM kill.
-    limit_mib: 72
-    spike_limit_mib: 18
+    # Below the 256Mi container limit (96Mi and 144Mi thrashed on kind, #104), so the limiter acts before an OOM kill.
+    limit_mib: 192
+    spike_limit_mib: 48
   # The environment of this namespace (dev or prod), set by each overlay.
   resource:
     attributes:
